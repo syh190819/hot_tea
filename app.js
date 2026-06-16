@@ -212,14 +212,16 @@ class WaterSimulatorApp {
                 console.log('物理引擎实例:', this.physicsEngine);
                 
                 this.initVisualization();
-                this.updateVisualization();
-                this.generateAdvice();
                 
                 if (this.timeSteps.length > 0) {
                     document.getElementById('time-slider').max = this.timeSteps.length - 1;
                     document.getElementById('time-slider').value = 0;
+                    this.currentTimeIndex = 0;
+                    this.updateVisualization();
+                    this.updateTimeDisplay();
                 }
                 
+                this.generateAdvice();
                 this.updateStatus('计算完成', false);
             } catch (error) {
                 console.error('模拟计算失败:', error);
@@ -231,6 +233,13 @@ class WaterSimulatorApp {
     initVisualization() {
         const container = document.getElementById('canvas-container');
         container.innerHTML = '';
+        
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.controls = null;
+        this.mesh = null;
+        this.cupMesh = null;
         
         if (this.detectWebGL()) {
             this.init3DScene();
@@ -635,9 +644,15 @@ class WaterSimulatorApp {
     }
     
     addProbeToChart() {
-        if (!this.currentProbePosition || !this.physicsEngine) return;
+        if (!this.currentProbePosition || !this.physicsEngine) {
+            console.warn('无法添加探针:', !this.currentProbePosition, !this.physicsEngine);
+            return;
+        }
         
         let probeY = this.currentProbePosition.y;
+        let probeX = this.currentProbePosition.x;
+        let probeZ = this.currentProbePosition.z || 0;
+        
         if (this.useWebGL) {
             const { height, wallThickness } = this.params;
             const liquidHeight = height - wallThickness * 2 - 2;
@@ -645,16 +660,21 @@ class WaterSimulatorApp {
             probeY = this.currentProbePosition.y + liquidBaseY;
         }
         
-        const data = this.physicsEngine.getProbeData(
-            this.currentProbePosition.x,
-            probeY,
-            this.currentProbePosition.z || 0
-        );
+        console.log('获取探针数据:', { x: probeX, y: probeY, z: probeZ });
+        
+        const data = this.physicsEngine.getProbeData(probeX, probeY, probeZ);
+        
+        console.log('探针数据:', data);
+        
+        if (data.length === 0) {
+            console.warn('探针数据为空');
+            return;
+        }
         
         const colors = ['#FF5A5F', '#00A699', '#FFD700', '#FF69B4', '#00D4FF', '#FC642D'];
         const color = colors[this.probes.length % colors.length];
         
-        const label = `位置 (${this.currentProbePosition.x.toFixed(1)}, ${this.currentProbePosition.y.toFixed(1)}, ${(this.currentProbePosition.z || 0).toFixed(1)})`;
+        const label = `位置 (${probeX.toFixed(1)}, ${probeY.toFixed(1)}, ${probeZ.toFixed(1)})`;
         
         if (this.probes.length === 0) {
             this.tempChart.data.labels = data.map(d => Math.round(d.time));
@@ -673,7 +693,7 @@ class WaterSimulatorApp {
         });
         
         this.tempChart.update();
-        this.probes.push({ position: this.currentProbePosition, color });
+        this.probes.push({ position: { x: probeX, y: probeY, z: probeZ }, color });
     }
     
     generateAdvice() {
@@ -740,14 +760,21 @@ class WaterSimulatorApp {
         }
         
         if (this.renderer && this.scene && this.camera) {
+            if (this.physicsEngine && this.mesh) {
+                this.update3DVisualization();
+            }
             this.renderer.render(this.scene, this.camera);
         }
     }
     
     updateTimeDisplay() {
+        if (!this.timeSteps || this.timeSteps.length === 0) {
+            document.getElementById('time-display').textContent = '00:00';
+            return;
+        }
         const totalSeconds = this.currentTimeIndex * 2;
         const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
+        const seconds = Math.floor(totalSeconds % 60);
         document.getElementById('time-display').textContent = 
             `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
