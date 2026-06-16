@@ -28,6 +28,8 @@ class WaterSimulatorApp {
             liquidType: 'tea'
         };
         
+        this.useWebGL = true;
+        
         this.init();
     }
     
@@ -207,8 +209,9 @@ class WaterSimulatorApp {
                 this.timeSteps = this.physicsEngine.solve();
                 
                 console.log('计算完成，时间步数:', this.timeSteps.length);
+                console.log('物理引擎实例:', this.physicsEngine);
                 
-                this.init3DScene();
+                this.initVisualization();
                 this.updateVisualization();
                 this.generateAdvice();
                 
@@ -225,43 +228,29 @@ class WaterSimulatorApp {
         }, 100);
     }
     
-    resetSimulation() {
-        if (this.animationId) {
-            cancelAnimationFrame(this.animationId);
+    initVisualization() {
+        const container = document.getElementById('canvas-container');
+        container.innerHTML = '';
+        
+        if (this.detectWebGL()) {
+            this.init3DScene();
+        } else {
+            this.init2DHeatmap();
         }
-        this.currentTimeIndex = 0;
-        this.probes = [];
-        
-        if (this.tempChart) {
-            this.tempChart.data.datasets = [];
-            this.tempChart.data.labels = [];
-            this.tempChart.update();
+    }
+    
+    detectWebGL() {
+        try {
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            return gl && gl instanceof WebGLRenderingContext;
+        } catch (e) {
+            return false;
         }
-        
-        document.getElementById('time-slider').value = 0;
-        document.getElementById('time-display').textContent = '00:00';
-        
-        document.getElementById('advice-card').innerHTML = `
-            <h4>🧠 AI 饮水策略分析</h4>
-            <p>点击「开始模拟计算」按钮，系统将基于物理信息神经网络进行热传导模拟，为您生成最优饮水方案。</p>
-            <div class="strategy">
-                <strong>💡 提示：</strong>点击3D模型任意位置放置探针，可查看该点的温度变化曲线。
-            </div>
-        `;
-        
-        document.getElementById('probe-info').classList.remove('active');
-        
-        if (this.renderer) {
-            this.renderer.dispose();
-            document.getElementById('canvas-container').innerHTML = '';
-        }
-        
-        this.updateStatus('准备就绪', false);
     }
     
     init3DScene() {
         const container = document.getElementById('canvas-container');
-        container.innerHTML = '';
         
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0xFFFFFF);
@@ -271,36 +260,200 @@ class WaterSimulatorApp {
         this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
         this.camera.position.set(0, 60, 200);
         
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        this.renderer.setSize(width, height);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        container.appendChild(this.renderer.domElement);
+        try {
+            this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            this.renderer.setSize(width, height);
+            this.renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(this.renderer.domElement);
+            
+            this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+            this.controls.enableDamping = true;
+            this.controls.dampingFactor = 0.05;
+            this.controls.minDistance = 100;
+            this.controls.maxDistance = 400;
+            
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            this.scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            directionalLight.position.set(60, 120, 60);
+            this.scene.add(directionalLight);
+            
+            const pointLight = new THREE.PointLight(0xFF5A5F, 0.2);
+            pointLight.position.set(-40, 80, -40);
+            this.scene.add(pointLight);
+            
+            this.createCup();
+            this.createLiquid();
+            
+            this.setupRaycaster();
+            
+            window.addEventListener('resize', () => this.onWindowResize());
+            
+            this.animate();
+            this.useWebGL = true;
+        } catch (e) {
+            console.error('WebGL初始化失败，切换到2D热力图:', e);
+            this.useWebGL = false;
+            this.init2DHeatmap();
+        }
+    }
+    
+    init2DHeatmap() {
+        const container = document.getElementById('canvas-container');
         
-        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
-        this.controls.minDistance = 100;
-        this.controls.maxDistance = 400;
+        const canvas = document.createElement('canvas');
+        canvas.id = 'heatmap-canvas';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.cursor = 'crosshair';
+        container.appendChild(canvas);
         
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        this.scene.add(ambientLight);
+        this.heatmapCanvas = canvas;
+        this.heatmapCtx = canvas.getContext('2d');
         
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
-        directionalLight.position.set(60, 120, 60);
-        this.scene.add(directionalLight);
+        this.resizeHeatmap();
+        this.draw2DHeatmap();
         
-        const pointLight = new THREE.PointLight(0xFF5A5F, 0.2);
-        pointLight.position.set(-40, 80, -40);
-        this.scene.add(pointLight);
+        canvas.addEventListener('click', (e) => this.handleHeatmapClick(e));
+        window.addEventListener('resize', () => this.resizeHeatmap());
         
-        this.createCup();
-        this.createLiquid();
+        this.useWebGL = false;
+    }
+    
+    resizeHeatmap() {
+        if (!this.heatmapCanvas) return;
+        const container = document.getElementById('canvas-container');
+        this.heatmapCanvas.width = container.clientWidth;
+        this.heatmapCanvas.height = container.clientHeight;
+        this.draw2DHeatmap();
+    }
+    
+    draw2DHeatmap() {
+        if (!this.heatmapCtx || !this.physicsEngine) return;
         
-        this.setupRaycaster();
+        const ctx = this.heatmapCtx;
+        const width = this.heatmapCanvas.width;
+        const height = this.heatmapCanvas.height;
         
-        window.addEventListener('resize', () => this.onWindowResize());
+        ctx.clearRect(0, 0, width, height);
         
-        this.animate();
+        const grid = this.timeSteps[this.currentTimeIndex];
+        const { rMax, hMax } = this.physicsEngine;
+        
+        const scaleX = width / (rMax * 2);
+        const scaleY = height / hMax;
+        const offsetX = width / 2;
+        const offsetY = height;
+        
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const liquidRadius = Math.min(width, height) * 0.35;
+        const liquidHeight = liquidRadius * 1.4;
+        
+        ctx.beginPath();
+        ctx.roundRect(centerX - liquidRadius, centerY - liquidHeight/2, liquidRadius * 2, liquidHeight, 8);
+        ctx.fillStyle = 'rgba(222, 226, 230, 0.3)';
+        ctx.fill();
+        ctx.strokeStyle = '#DEE2E6';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        const probeSpacing = 4;
+        const probeCountX = Math.floor(width / probeSpacing);
+        const probeCountY = Math.floor(height / probeSpacing);
+        
+        for (let py = 0; py < probeCountY; py++) {
+            for (let px = 0; px < probeCountX; px++) {
+                const screenX = px * probeSpacing;
+                const screenY = py * probeSpacing;
+                
+                const relX = screenX - centerX;
+                const relY = centerY - screenY;
+                
+                const r = Math.sqrt(relX * relX) / liquidRadius * rMax;
+                const h = relY / liquidHeight * hMax;
+                
+                if (r <= rMax && h >= 0 && h <= hMax) {
+                    const temp = this.physicsEngine.getTemperatureAtPosition(r, h, 0, this.currentTimeIndex);
+                    const color = this.tempToColor(temp);
+                    
+                    ctx.fillStyle = `rgba(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)}, 0.8)`;
+                    ctx.fillRect(screenX, screenY, probeSpacing - 1, probeSpacing - 1);
+                }
+            }
+        }
+        
+        ctx.beginPath();
+        ctx.roundRect(centerX - liquidRadius, centerY - liquidHeight/2, liquidRadius * 2, liquidHeight, 8);
+        ctx.strokeStyle = '#FF5A5F';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ctx.fillStyle = '#636E72';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('点击任意位置查看温度', centerX, centerY + liquidHeight/2 + 24);
+        
+        if (this.currentProbePosition) {
+            const probeScreenX = centerX + this.currentProbePosition.x / rMax * liquidRadius;
+            const probeScreenY = centerY - this.currentProbePosition.y / hMax * liquidHeight;
+            
+            ctx.beginPath();
+            ctx.arc(probeScreenX, probeScreenY, 12, 0, Math.PI * 2);
+            ctx.fillStyle = '#FF5A5F';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(probeScreenX, probeScreenY, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+            
+            const probeTemp = this.physicsEngine.getTemperatureAtPosition(
+                this.currentProbePosition.x,
+                this.currentProbePosition.y,
+                0,
+                this.currentTimeIndex
+            );
+            
+            ctx.fillStyle = '#FF5A5F';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillText(probeTemp.toFixed(1) + '°C', probeScreenX, probeScreenY + 4);
+        }
+    }
+    
+    handleHeatmapClick(e) {
+        if (!this.physicsEngine) return;
+        
+        const rect = this.heatmapCanvas.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        
+        const centerX = this.heatmapCanvas.width / 2;
+        const centerY = this.heatmapCanvas.height / 2;
+        const { rMax, hMax } = this.physicsEngine;
+        
+        const liquidRadius = Math.min(this.heatmapCanvas.width, this.heatmapCanvas.height) * 0.35;
+        const liquidHeight = liquidRadius * 1.4;
+        
+        const relX = screenX - centerX;
+        const relY = centerY - screenY;
+        
+        const r = Math.sqrt(relX * relX) / liquidRadius * rMax;
+        const h = relY / liquidHeight * hMax;
+        
+        if (r <= rMax && h >= 0 && h <= hMax) {
+            this.currentProbePosition = { x: r, y: h, z: 0 };
+            
+            document.getElementById('probe-x').textContent = r.toFixed(1);
+            document.getElementById('probe-y').textContent = h.toFixed(1);
+            document.getElementById('probe-z').textContent = '0';
+            
+            const temp = this.physicsEngine.getTemperatureAtPosition(r, h, 0, this.currentTimeIndex);
+            document.getElementById('probe-temp').textContent = temp.toFixed(1);
+            document.getElementById('probe-info').classList.add('active');
+            
+            this.draw2DHeatmap();
+        }
     }
     
     createCup() {
@@ -366,25 +519,35 @@ class WaterSimulatorApp {
         
         const normalized = Math.max(0, Math.min(1, (temp - minTemp) / tempRange));
         
-        if (normalized < 0.3) {
-            const t = normalized / 0.3;
-            return { r: 0.1 + t * 0.2, g: 0.5 + t * 0.4, b: 0.8 + t * 0.2 };
-        } else if (normalized < 0.6) {
-            const t = (normalized - 0.3) / 0.3;
-            return { r: 0.3, g: 0.9 - t * 0.4, b: 1 - t * 0.5 };
-        } else if (normalized < 0.8) {
-            const t = (normalized - 0.6) / 0.2;
-            return { r: 0.3 + t * 0.7, g: 0.5 - t * 0.2, b: 0.5 - t * 0.5 };
+        if (normalized < 0.25) {
+            const t = normalized / 0.25;
+            return { r: 0.0, g: 0.4 + t * 0.3, b: 0.9 + t * 0.1 };
+        } else if (normalized < 0.5) {
+            const t = (normalized - 0.25) / 0.25;
+            return { r: 0.0, g: 0.7 + t * 0.3, b: 1.0 - t * 0.3 };
+        } else if (normalized < 0.75) {
+            const t = (normalized - 0.5) / 0.25;
+            return { r: 0.0 + t * 0.8, g: 1.0 - t * 0.2, b: 0.7 - t * 0.4 };
         } else {
-            const t = (normalized - 0.8) / 0.2;
-            return { r: 1, g: 0.3 - t * 0.3, b: 0 };
+            const t = (normalized - 0.75) / 0.25;
+            return { r: 0.8 + t * 0.2, g: 0.8 - t * 0.5, b: 0.3 - t * 0.3 };
         }
     }
     
     updateVisualization() {
-        if (!this.mesh || !this.physicsEngine || !this.timeSteps[this.currentTimeIndex]) return;
+        if (this.useWebGL) {
+            this.update3DVisualization();
+        } else {
+            this.draw2DHeatmap();
+        }
+    }
+    
+    update3DVisualization() {
+        if (!this.mesh || !this.physicsEngine || !this.timeSteps[this.currentTimeIndex]) {
+            console.log('updateVisualization skipped:', !this.mesh, !this.physicsEngine, !this.timeSteps[this.currentTimeIndex]);
+            return;
+        }
         
-        const grid = this.timeSteps[this.currentTimeIndex];
         const positions = this.mesh.geometry.attributes.position;
         const colors = this.mesh.geometry.attributes.color;
         const { height, wallThickness } = this.params;
@@ -474,23 +637,29 @@ class WaterSimulatorApp {
     addProbeToChart() {
         if (!this.currentProbePosition || !this.physicsEngine) return;
         
-        const { height, wallThickness } = this.params;
-        const liquidHeight = height - wallThickness * 2 - 2;
-        const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
-        const probeY = this.currentProbePosition.y + liquidBaseY;
+        let probeY = this.currentProbePosition.y;
+        if (this.useWebGL) {
+            const { height, wallThickness } = this.params;
+            const liquidHeight = height - wallThickness * 2 - 2;
+            const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
+            probeY = this.currentProbePosition.y + liquidBaseY;
+        }
         
         const data = this.physicsEngine.getProbeData(
             this.currentProbePosition.x,
             probeY,
-            this.currentProbePosition.z
+            this.currentProbePosition.z || 0
         );
         
         const colors = ['#FF5A5F', '#00A699', '#FFD700', '#FF69B4', '#00D4FF', '#FC642D'];
         const color = colors[this.probes.length % colors.length];
         
-        const label = `位置 (${this.currentProbePosition.x.toFixed(1)}, ${this.currentProbePosition.y.toFixed(1)}, ${this.currentProbePosition.z.toFixed(1)})`;
+        const label = `位置 (${this.currentProbePosition.x.toFixed(1)}, ${this.currentProbePosition.y.toFixed(1)}, ${(this.currentProbePosition.z || 0).toFixed(1)})`;
         
-        this.tempChart.data.labels = data.map(d => d.time);
+        if (this.probes.length === 0) {
+            this.tempChart.data.labels = data.map(d => Math.round(d.time));
+        }
+        
         this.tempChart.data.datasets.push({
             label: label,
             data: data.map(d => d.temp),
@@ -517,7 +686,7 @@ class WaterSimulatorApp {
         
         if (strategy.optimalStartTime !== null) {
             const minutes = Math.floor(strategy.optimalStartTime / 60);
-            const seconds = strategy.optimalStartTime % 60;
+            const seconds = Math.floor(strategy.optimalStartTime % 60);
             html += `<p><strong>最佳饮用时间：</strong>等待约 ${minutes}分${seconds}秒 后开始饮用</p>`;
         }
         
@@ -570,15 +739,13 @@ class WaterSimulatorApp {
             this.controls.update();
         }
         
-        if (this.mesh) {
-            this.mesh.rotation.y += 0.002;
+        if (this.renderer && this.scene && this.camera) {
+            this.renderer.render(this.scene, this.camera);
         }
-        
-        this.renderer.render(this.scene, this.camera);
     }
     
     updateTimeDisplay() {
-        const totalSeconds = this.currentTimeIndex * 5;
+        const totalSeconds = this.currentTimeIndex * 2;
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
         document.getElementById('time-display').textContent = 
@@ -592,13 +759,60 @@ class WaterSimulatorApp {
     }
     
     onWindowResize() {
-        const container = document.getElementById('canvas-container');
-        const width = container.clientWidth;
-        const height = container.clientHeight;
+        if (this.useWebGL && this.renderer) {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            this.camera.aspect = width / height;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(width, height);
+        } else {
+            this.resizeHeatmap();
+        }
+    }
+    
+    resetSimulation() {
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+        }
+        this.currentTimeIndex = 0;
+        this.probes = [];
+        this.currentProbePosition = null;
         
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(width, height);
+        if (this.tempChart) {
+            this.tempChart.data.datasets = [];
+            this.tempChart.data.labels = [];
+            this.tempChart.update();
+        }
+        
+        document.getElementById('time-slider').value = 0;
+        document.getElementById('time-display').textContent = '00:00';
+        
+        document.getElementById('advice-card').innerHTML = `
+            <h4>🧠 AI 饮水策略分析</h4>
+            <p>点击「开始模拟计算」按钮，系统将基于物理信息神经网络进行热传导模拟，为您生成最优饮水方案。</p>
+            <div class="strategy">
+                <strong>💡 提示：</strong>点击3D模型任意位置放置探针，可查看该点的温度变化曲线。
+            </div>
+        `;
+        
+        document.getElementById('probe-info').classList.remove('active');
+        
+        const container = document.getElementById('canvas-container');
+        container.innerHTML = '';
+        
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.controls = null;
+        this.mesh = null;
+        this.cupMesh = null;
+        this.probePoint = null;
+        this.heatmapCanvas = null;
+        this.heatmapCtx = null;
+        
+        this.updateStatus('准备就绪', false);
     }
 }
 

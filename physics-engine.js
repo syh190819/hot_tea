@@ -4,158 +4,142 @@ class HeatConductionEngine {
         this.grid = null;
         this.timeSteps = [];
         this.maxTime = 600;
-        this.timeStep = 1;
-        this.numSteps = this.maxTime / this.timeStep;
-        
-        this.liquidProperties = {
-            tea: { cp: 4186, k: 0.58, rho: 998, alpha: 1.41e-7 },
-            coffee: { cp: 4050, k: 0.55, rho: 1010, alpha: 1.35e-7 },
-            juice: { cp: 3850, k: 0.52, rho: 1050, alpha: 1.26e-7 },
-            water: { cp: 4186, k: 0.60, rho: 998, alpha: 1.47e-7 }
-        };
-        
-        this.liquid = this.liquidProperties[params.liquidType] || this.liquidProperties.water;
+        this.numTimeSteps = 100;
+        this.cachedData = {};
     }
     
     initGrid() {
         const { diameter, height, wallThickness } = this.params;
-        const rMax = diameter / 2 - wallThickness;
-        const hMax = height - wallThickness * 2;
         
-        const nr = 20;
-        const nh = 24;
-        const nTheta = 8;
+        this.rMax = diameter / 2 - wallThickness;
+        this.hMax = height - wallThickness * 2;
         
-        const dr = rMax / (nr - 1);
-        const dh = hMax / (nh - 1);
+        this.nr = 20;
+        this.nh = 24;
         
-        this.grid = {
-            nr, nh, nTheta,
-            dr, dh,
-            rMax, hMax,
-            data: []
-        };
+        this.dr = this.rMax / (this.nr - 1);
+        this.dh = this.hMax / (this.nh - 1);
         
-        for (let i = 0; i < nr; i++) {
-            const row = [];
-            for (let j = 0; j < nh; j++) {
-                const col = [];
-                for (let k = 0; k < nTheta; k++) {
-                    col.push(this.params.initialTemp);
-                }
-                row.push(col);
+        this.grid = [];
+        for (let i = 0; i < this.nr; i++) {
+            this.grid[i] = [];
+            for (let j = 0; j < this.nh; j++) {
+                this.grid[i][j] = this.params.initialTemp;
             }
-            this.grid.data.push(row);
         }
         
         this.timeSteps.push(this.cloneGrid());
     }
     
     cloneGrid() {
-        const newGrid = { ...this.grid };
-        newGrid.data = this.grid.data.map(row => row.map(col => [...col]));
-        return newGrid;
+        return this.grid.map(row => [...row]);
     }
     
     solve() {
         this.initGrid();
         
-        const alpha = this.liquid.alpha;
-        const dt = this.timeStep;
-        const { dr, dh, nr, nh, nTheta } = this.grid;
-        const { ambientTemp, wallThickness } = this.params;
+        const { ambientTemp, initialTemp } = this.params;
         
-        const h_conv = 15;
-        const h_evap = 8;
-        const k_wall = 1.0;
+        const baseCoolingRate = 0.003;
+        const edgeCoolingFactor = 5.0;
+        const surfaceCoolingFactor = 6.0;
         
-        for (let step = 0; step < this.numSteps; step++) {
-            const newData = this.grid.data.map(row => row.map(col => [...col]));
+        console.log('=== 物理引擎开始计算 ===');
+        console.log(`初始温度: ${initialTemp}°C, 环境温度: ${ambientTemp}°C`);
+        console.log(`网格: ${this.nr}×${this.nh}`);
+        
+        for (let step = 0; step < this.numTimeSteps; step++) {
+            const newGrid = this.cloneGrid();
             
-            for (let i = 0; i < nr; i++) {
-                for (let j = 0; j < nh; j++) {
-                    for (let k = 0; k < nTheta; k++) {
-                        const r = i * dr;
-                        const currentTemp = this.grid.data[i][j][k];
-                        
-                        let d2T_dr2 = 0;
-                        let dT_dr = 0;
-                        let d2T_dh2 = 0;
-                        
-                        if (i > 0 && i < nr - 1) {
-                            d2T_dr2 = (this.grid.data[i + 1][j][k] - 2 * currentTemp + this.grid.data[i - 1][j][k]) / (dr * dr);
-                            dT_dr = (this.grid.data[i + 1][j][k] - this.grid.data[i - 1][j][k]) / (2 * dr);
-                        } else if (i === nr - 1) {
-                            const wallResistance = wallThickness / k_wall;
-                            const heatLoss = (currentTemp - ambientTemp) / (wallResistance + 1 / h_conv);
-                            d2T_dr2 = -heatLoss / (this.liquid.k * dr);
-                            dT_dr = -heatLoss / this.liquid.k;
-                        } else if (i === 0) {
-                            d2T_dr2 = (this.grid.data[1][j][k] - currentTemp) / (dr * dr);
-                        }
-                        
-                        if (j > 0 && j < nh - 1) {
-                            d2T_dh2 = (this.grid.data[i][j + 1][k] - 2 * currentTemp + this.grid.data[i][j - 1][k]) / (dh * dh);
-                        } else if (j === nh - 1) {
-                            const heatLoss = h_evap * (currentTemp - ambientTemp);
-                            d2T_dh2 = -heatLoss / (this.liquid.k * dh);
-                        } else if (j === 0) {
-                            const wallResistance = wallThickness / k_wall;
-                            const heatLoss = (currentTemp - ambientTemp) / (wallResistance + 1 / h_conv);
-                            d2T_dh2 = -heatLoss / (this.liquid.k * dh);
-                        }
-                        
-                        const dT_dt = alpha * (d2T_dr2 + (r > 0 ? dT_dr / r : 0) + d2T_dh2);
-                        const newTemp = currentTemp + dT_dt * dt;
-                        
-                        newData[i][j][k] = Math.max(ambientTemp, Math.min(this.params.initialTemp, newTemp));
+            for (let i = 0; i < this.nr; i++) {
+                for (let j = 0; j < this.nh; j++) {
+                    const rRatio = i / (this.nr - 1);
+                    const hRatio = j / (this.nh - 1);
+                    
+                    let coolingMultiplier = 1.0;
+                    
+                    if (rRatio > 0.6) {
+                        coolingMultiplier += (rRatio - 0.6) * 2.5 * edgeCoolingFactor;
+                    }
+                    
+                    if (hRatio > 0.75) {
+                        coolingMultiplier += (hRatio - 0.75) * 4 * surfaceCoolingFactor;
+                    }
+                    
+                    if (rRatio < 0.4 && hRatio < 0.4) {
+                        coolingMultiplier *= 0.5;
+                    }
+                    
+                    const tempDiff = this.grid[i][j] - ambientTemp;
+                    const cooling = tempDiff * baseCoolingRate * coolingMultiplier;
+                    
+                    newGrid[i][j] -= cooling;
+                    
+                    if (newGrid[i][j] < ambientTemp) {
+                        newGrid[i][j] = ambientTemp;
                     }
                 }
             }
             
-            this.grid.data = newData;
-            
-            if (step % 5 === 0) {
-                this.timeSteps.push(this.cloneGrid());
+            for (let i = 1; i < this.nr - 1; i++) {
+                for (let j = 1; j < this.nh - 1; j++) {
+                    const avgNeighbor = (
+                        newGrid[i + 1][j] + newGrid[i - 1][j] +
+                        newGrid[i][j + 1] + newGrid[i][j - 1]
+                    ) / 4;
+                    newGrid[i][j] = newGrid[i][j] * 0.8 + avgNeighbor * 0.2;
+                }
             }
+            
+            this.grid = newGrid;
+            this.timeSteps.push(this.cloneGrid());
         }
+        
+        const centerTemp = this.grid[Math.floor(this.nr/2)][Math.floor(this.nh/2)];
+        const edgeTemp = this.grid[this.nr-1][Math.floor(this.nh/2)];
+        const surfaceTemp = this.grid[Math.floor(this.nr/2)][this.nh-1];
+        
+        console.log(`=== 计算完成 ===`);
+        console.log(`时间步数: ${this.timeSteps.length}`);
+        console.log(`最终时刻 - 中心: ${centerTemp.toFixed(2)}°C, 边缘: ${edgeTemp.toFixed(2)}°C, 表层: ${surfaceTemp.toFixed(2)}°C`);
         
         return this.timeSteps;
     }
     
     getTemperatureAtPosition(x, y, z, timeIndex) {
-        if (!this.timeSteps || !this.timeSteps[timeIndex]) return this.params.initialTemp;
+        if (!this.timeSteps || !this.timeSteps[timeIndex]) {
+            console.warn(`时间索引 ${timeIndex} 无效，总步数 ${this.timeSteps?.length || 0}`);
+            return this.params.initialTemp;
+        }
         
         const grid = this.timeSteps[timeIndex];
-        const { rMax, hMax, nr, nh } = grid;
-        
         const r = Math.sqrt(x * x + z * z);
         
-        if (r > rMax) {
+        if (r > this.rMax) {
             return this.params.ambientTemp;
         }
         
-        const h = y;
-        
-        if (h < 0 || h > hMax) {
+        if (y < 0 || y > this.hMax) {
             return this.params.ambientTemp;
         }
         
-        const i = Math.floor(r / grid.dr);
-        const j = Math.floor(h / grid.dh);
+        const i = Math.floor(r / this.dr);
+        const j = Math.floor(y / this.dh);
         
-        const i_clamped = Math.max(0, Math.min(nr - 1, i));
-        const j_clamped = Math.max(0, Math.min(nh - 1, j));
+        const i_clamped = Math.max(0, Math.min(this.nr - 1, i));
+        const j_clamped = Math.max(0, Math.min(this.nh - 1, j));
         
-        return grid.data[i_clamped][j_clamped][0];
+        return grid[i_clamped][j_clamped];
     }
     
     getProbeData(x, y, z) {
         const data = [];
         if (!this.timeSteps || this.timeSteps.length === 0) return data;
         
+        const timeStepSize = this.maxTime / this.numTimeSteps;
+        
         for (let t = 0; t < this.timeSteps.length; t++) {
-            const time = t * this.timeStep * 5;
+            const time = t * timeStepSize;
             const temp = this.getTemperatureAtPosition(x, y, z, t);
             data.push({ time, temp });
         }
@@ -169,18 +153,19 @@ class HeatConductionEngine {
             recommendations: []
         };
         
+        const timeStepSize = this.maxTime / this.numTimeSteps;
+        
         const analyzePhase = (timeStart, timeEnd, description) => {
             const temps = [];
-            const stepSize = Math.max(1, Math.floor((timeEnd - timeStart) / 10));
-            for (let t = timeStart; t <= timeEnd; t += stepSize) {
-                const timeIndex = Math.floor(t / 5);
-                if (timeIndex >= 0 && timeIndex < this.timeSteps.length) {
-                    const centerTemp = this.getTemperatureAtPosition(0, this.grid.hMax / 2, 0, timeIndex);
+            const stepSize = Math.max(1, Math.floor((timeEnd - timeStart) / timeStepSize / 10));
+            for (let t = Math.floor(timeStart / timeStepSize); t <= Math.floor(timeEnd / timeStepSize); t += stepSize) {
+                if (t >= 0 && t < this.timeSteps.length) {
+                    const centerTemp = this.getTemperatureAtPosition(0, this.hMax / 2, 0, t);
                     const edgeTemp = this.getTemperatureAtPosition(
-                        Math.max(0.1, this.grid.rMax * 0.8), this.grid.hMax / 2, 0, timeIndex
+                        Math.max(1, this.rMax * 0.8), this.hMax / 2, 0, t
                     );
                     const surfaceTemp = this.getTemperatureAtPosition(
-                        0, Math.max(0.1, this.grid.hMax * 0.8), 0, timeIndex
+                        0, Math.max(1, this.hMax * 0.9), 0, t
                     );
                     temps.push({ centerTemp, edgeTemp, surfaceTemp });
                 }
@@ -262,11 +247,12 @@ class HeatConductionEngine {
     
     findOptimalStartTime() {
         const { targetMinTemp, targetMaxTemp } = this.params;
+        const timeStepSize = this.maxTime / this.numTimeSteps;
         
         for (let t = 0; t < this.timeSteps.length; t++) {
-            const centerTemp = this.getTemperatureAtPosition(0, this.grid.hMax / 2, 0, t);
+            const centerTemp = this.getTemperatureAtPosition(0, this.hMax / 2, 0, t);
             if (centerTemp <= targetMaxTemp && centerTemp >= targetMinTemp) {
-                return t * this.timeStep * 5;
+                return t * timeStepSize;
             }
         }
         return null;
