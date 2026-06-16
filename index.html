@@ -2,314 +2,427 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>硬核喝水模拟器 - 用AI物理计算解决日常喝水问题</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智能饮水助手 - 科学计算最佳饮用时间</title>
     <style>
+        :root {
+            --primary: #FF5A5F;
+            --primary-hover: #FF7E82;
+            --secondary: #00A699;
+            --secondary-hover: #00BBAD;
+            --accent: #FC642D;
+            --bg-dark: #1A1A1A;
+            --bg-card: #242424;
+            --bg-input: #2D2D2D;
+            --text-primary: #FFFFFF;
+            --text-secondary: #B0B0B0;
+            --text-muted: #6B6B6B;
+            --border: #3D3D3D;
+            --success: #00A699;
+            --warning: #FC642D;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            --radius: 12px;
+            --radius-lg: 16px;
+            --radius-sm: 8px;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f23; color: #e0e0e0; overflow: hidden; }
+        html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: var(--bg-dark); color: var(--text-primary); overflow: hidden; -webkit-font-smoothing: antialiased; }
         
         .header {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            padding: 15px 30px;
-            border-bottom: 2px solid #3d5a80;
+            background: var(--bg-card);
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
             position: relative;
             z-index: 100;
+            flex-wrap: wrap;
+            gap: 12px;
         }
-        .header h1 { font-size: 28px; background: linear-gradient(90deg, #00d4ff, #7b2cbf, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; text-shadow: 0 0 30px rgba(0, 212, 255, 0.3); }
-        .header .subtitle { font-size: 14px; color: #ff6b6b; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; }
+        .header .logo { display: flex; align-items: center; gap: 12px; }
+        .header .logo-icon { width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary), var(--accent)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+        .header .subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
         
-        .header::before {
-            content: '📐';
-            font-size: 32px;
-            position: absolute;
-            left: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            animation: rotate 3s linear infinite;
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-input);
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
         }
-        @keyframes rotate {
-            from { transform: translateY(-50%) rotate(0deg); }
-            to { transform: translateY(-50%) rotate(360deg); }
-        }
+        .status-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+        .status-bar .computing { color: var(--accent); }
+        .status-bar .computing .dot { background: var(--accent); animation: pulse 1.5s infinite; }
         
-        .main-container { display: flex; height: calc(100vh - 60px); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .main-container { display: flex; height: calc(100vh - 60px); overflow: hidden; }
         
         .left-panel {
-            width: 320px;
-            background: rgba(26, 26, 46, 0.95);
-            border-right: 1px solid #2a2a4a;
+            width: 360px;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
             padding: 20px;
             overflow-y: auto;
             scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
         }
         .left-panel::-webkit-scrollbar { width: 6px; }
-        .left-panel::-webkit-scrollbar-track { background: #1a1a2e; }
-        .left-panel::-webkit-scrollbar-thumb { background: #3d5a80; border-radius: 3px; }
+        .left-panel::-webkit-scrollbar-track { background: transparent; }
+        .left-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
         
-        .panel-section { margin-bottom: 25px; }
+        .panel-section { margin-bottom: 28px; }
         .panel-section h3 {
-            font-size: 14px;
-            color: #00d4ff;
-            margin-bottom: 15px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #2a2a4a;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
         }
         
-        .param-row { margin-bottom: 12px; }
-        .param-row label { display: block; font-size: 12px; color: #aaa; margin-bottom: 5px; }
-        .param-row input[type="range"] { width: 100%; height: 6px; background: #2a2a4a; border-radius: 3px; outline: none; }
-        .param-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #00d4ff; border-radius: 50%; cursor: pointer; }
+        .param-row { margin-bottom: 16px; }
+        .param-row label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .param-row .param-value { color: var(--primary); font-weight: 600; }
+        .param-row input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-input);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+        .param-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .param-row input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
         .param-row input[type="number"], .param-row select {
             width: 100%;
-            padding: 8px 12px;
-            background: #2a2a4a;
-            border: 1px solid #3d5a80;
-            border-radius: 4px;
-            color: #e0e0e0;
-            font-size: 13px;
+            padding: 10px 14px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 14px;
             outline: none;
+            transition: border-color 0.2s;
         }
-        .param-row input[type="number"]:focus, .param-row select:focus { border-color: #00d4ff; }
-        
-        .param-value { font-size: 11px; color: #00d4ff; float: right; }
+        .param-row input[type="number"]:focus, .param-row select:focus { border-color: var(--primary); }
         
         .liquid-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
+            gap: 10px;
         }
         .liquid-option {
-            padding: 10px;
-            background: #2a2a4a;
-            border: 1px solid #3d5a80;
-            border-radius: 6px;
+            padding: 14px 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
             cursor: pointer;
             text-align: center;
-            transition: all 0.2s;
+            transition: all 0.25s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
         }
-        .liquid-option:hover { border-color: #00d4ff; background: #1e3a5f; }
-        .liquid-option.active { border-color: #00d4ff; background: #00d4ff22; }
-        .liquid-option .liquid-icon { font-size: 24px; margin-bottom: 5px; }
-        .liquid-option .liquid-name { font-size: 12px; }
+        .liquid-option:hover { border-color: var(--primary); background: rgba(255, 90, 95, 0.08); }
+        .liquid-option.active { border-color: var(--primary); background: rgba(255, 90, 95, 0.12); }
+        .liquid-option .liquid-icon { font-size: 28px; }
+        .liquid-option .liquid-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
         
         .btn {
             width: 100%;
-            padding: 12px;
+            padding: 14px;
             border: none;
-            border-radius: 6px;
-            font-size: 14px;
+            border-radius: var(--radius);
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.25s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
         .btn-primary {
-            background: linear-gradient(135deg, #00d4ff, #0099cc);
-            color: #0f0f23;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
         }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255, 90, 95, 0.35); }
+        .btn-primary:active { transform: translateY(0); }
         .btn-secondary {
-            background: #2a2a4a;
-            color: #e0e0e0;
-            border: 1px solid #3d5a80;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
         }
-        .btn-secondary:hover { background: #3d5a80; }
+        .btn-secondary:hover { background: var(--border); }
         
+        .target-temp-display {
+            background: linear-gradient(135deg, rgba(0, 166, 153, 0.15), rgba(0, 166, 153, 0.05));
+            border: 1px solid rgba(0, 166, 153, 0.3);
+            border-radius: var(--radius);
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        .target-temp-display .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .target-temp-display .range { font-size: 24px; color: var(--success); font-weight: 700; margin-top: 4px; }
+        
+        .physics-info {
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            margin-top: 16px;
+        }
+        .physics-info .title { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+        .physics-info .equation { font-family: 'SF Mono', 'Monaco', monospace; font-size: 12px; color: var(--text-secondary); text-align: center; padding: 8px; background: rgba(255, 90, 95, 0.05); border-radius: 4px; }
+        .physics-info .fact { font-size: 11px; color: var(--secondary); line-height: 1.6; margin-top: 10px; padding-left: 12px; border-left: 2px solid var(--secondary); }
+
         .center-panel {
             flex: 1;
             position: relative;
-            background: #0a0a15;
+            background: var(--bg-dark);
+            display: flex;
+            flex-direction: column;
         }
-        #canvas-container { width: 100%; height: 100%; }
+        #canvas-container { flex: 1; width: 100%; }
         
         .canvas-controls {
             position: absolute;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(26, 26, 46, 0.9);
-            padding: 15px 25px;
-            border-radius: 12px;
-            border: 1px solid #2a2a4a;
+            background: rgba(36, 36, 36, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 14px 24px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 16px;
+            box-shadow: var(--shadow);
         }
         
         .time-display {
-            font-family: 'Courier New', monospace;
-            font-size: 20px;
-            color: #00d4ff;
-            min-width: 100px;
+            font-family: 'SF Mono', 'Monaco', monospace;
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--primary);
+            min-width: 80px;
             text-align: center;
+            letter-spacing: 1px;
         }
         
-        .time-slider { flex: 1; min-width: 200px; }
+        .time-slider { flex: 1; min-width: 180px; }
         
         .control-btn {
-            width: 36px;
-            height: 36px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             border: none;
-            background: #2a2a4a;
-            color: #e0e0e0;
+            background: var(--bg-input);
+            color: var(--text-primary);
             cursor: pointer;
-            font-size: 16px;
+            font-size: 18px;
             transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .control-btn:hover { background: #3d5a80; }
-        .control-btn.play { background: #00d4ff; color: #0f0f23; }
+        .control-btn:hover { background: var(--border); }
+        .control-btn.play { background: var(--primary); color: white; }
+        .control-btn.play:hover { background: var(--primary-hover); }
         
         .probe-info {
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(26, 26, 46, 0.9);
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #2a2a4a;
-            font-size: 12px;
-            color: #aaa;
+            background: rgba(36, 36, 36, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--text-secondary);
             display: none;
+            box-shadow: var(--shadow);
+            min-width: 200px;
         }
         .probe-info.active { display: block; }
-        .probe-info .probe-temp { font-size: 20px; color: #ff6b6b; font-weight: bold; }
+        .probe-info .probe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .probe-info .probe-temp { font-size: 24px; color: var(--accent); font-weight: 700; }
+        .probe-info .probe-coords { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
         
         .right-panel {
-            width: 350px;
-            background: rgba(26, 26, 46, 0.95);
-            border-left: 1px solid #2a2a4a;
+            width: 380px;
+            background: var(--bg-card);
+            border-left: 1px solid var(--border);
             padding: 20px;
             overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
         }
+        .right-panel::-webkit-scrollbar { width: 6px; }
+        .right-panel::-webkit-scrollbar-track { background: transparent; }
+        .right-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
         
         .chart-container {
-            background: #1a1a2e;
-            border-radius: 8px;
-            padding: 15px;
+            background: var(--bg-input);
+            border-radius: var(--radius);
+            padding: 16px;
             margin-bottom: 20px;
-            border: 1px solid #2a2a4a;
+            border: 1px solid var(--border);
         }
-        .chart-container canvas { width: 100% !important; height: 200px !important; }
+        .chart-container canvas { width: 100% !important; height: 220px !important; }
         
         .advice-card {
-            background: linear-gradient(135deg, #1e3a5f 0%, #1a1a2e 100%);
-            border-radius: 8px;
-            padding: 15px;
-            border: 1px solid #3d5a80;
-        }
-        .advice-card h4 {
-            color: #00d4ff;
-            margin-bottom: 10px;
-            font-size: 13px;
-        }
-        .advice-card p {
-            font-size: 12px;
-            line-height: 1.6;
-            color: #ccc;
-            margin-bottom: 8px;
-        }
-        .advice-card .strategy {
-            background: #00d4ff11;
-            border-left: 3px solid #00d4ff;
-            padding: 10px;
-            margin-top: 10px;
-            border-radius: 0 4px 4px 0;
-        }
-        .advice-card .strategy strong { color: #00d4ff; }
-        
-        .status-bar {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-size: 12px;
-            color: #666;
-            border: 1px solid #2a2a4a;
-            font-family: 'Courier New', monospace;
-        }
-        .status-bar .computing { 
-            color: #ff6b6b; 
-            animation: pulse 1s infinite;
-            text-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
-        }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        
-        .status-bar::before {
-            content: '🔬';
-            margin-right: 8px;
-        }
-        
-        .science-joke {
-            font-size: 11px;
-            color: #00d4ff;
-            margin-top: 15px;
-            padding: 12px;
-            background: #00d4ff08;
-            border-radius: 6px;
-            border: 1px dashed #00d4ff33;
-            font-style: italic;
-            text-align: center;
-            animation: fadeIn 2s ease-in-out;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .physics-equation {
-            font-family: 'Times New Roman', serif;
-            font-style: italic;
-            font-size: 11px;
-            color: #7b2cbf;
-            text-align: center;
-            margin-bottom: 15px;
-            padding: 8px;
-            background: #7b2cbf08;
-            border-radius: 4px;
-        }
-        
-        .cool-fact {
-            font-size: 10px;
-            color: #00ff88;
-            padding: 8px;
-            background: #00ff8808;
-            border-radius: 4px;
-            margin-top: 10px;
-            border-left: 2px solid #00ff88;
-        }
-        
-        .target-temp-display {
-            background: #2a2a4a;
-            border-radius: 6px;
-            padding: 12px;
-            text-align: center;
+            background: linear-gradient(135deg, rgba(0, 166, 153, 0.1), rgba(255, 90, 95, 0.05));
+            border-radius: var(--radius);
+            padding: 18px;
+            border: 1px solid rgba(0, 166, 153, 0.2);
             margin-bottom: 20px;
         }
-        .target-temp-display .label { font-size: 11px; color: #666; }
-        .target-temp-display .range { font-size: 20px; color: #00ff88; font-weight: bold; }
+        .advice-card h4 {
+            color: var(--secondary);
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .advice-card p {
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+        .advice-card .strategy {
+            background: rgba(0, 166, 153, 0.08);
+            border-left: 3px solid var(--secondary);
+            padding: 12px;
+            margin-top: 12px;
+            border-radius: 0 4px 4px 0;
+        }
+        .advice-card .strategy strong { color: var(--secondary); font-size: 13px; }
+        
+        .phase-card {
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+        .phase-card:hover { border-color: var(--secondary); }
+        .phase-card .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .phase-card .phase-time { font-size: 12px; color: var(--primary); font-weight: 600; }
+        .phase-card .phase-name { font-size: 12px; color: var(--text-muted); }
+        .phase-card .phase-temps { font-size: 11px; color: var(--text-secondary); display: flex; gap: 12px; }
+        .phase-card .phase-temps span { font-family: 'SF Mono', monospace; }
+        .phase-card .phase-best { font-size: 12px; color: var(--success); margin-top: 6px; font-weight: 500; }
+        
+        .physics-params {
+            background: var(--bg-input);
+            border-radius: var(--radius);
+            padding: 16px;
+            border: 1px solid var(--border);
+        }
+        .physics-params .param-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+        .physics-params .param-item:last-child { border-bottom: none; }
+        .physics-params .param-label { font-size: 12px; color: var(--text-muted); }
+        .physics-params .param-val { font-size: 12px; color: var(--text-secondary); font-family: 'SF Mono', monospace; font-weight: 500; }
+
+        .mobile-toggle {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 200;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 56px;
+            height: 56px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(255, 90, 95, 0.4);
+        }
+        
+        @media (max-width: 1024px) {
+            .left-panel { width: 320px; }
+            .right-panel { width: 340px; }
+        }
+        
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; height: auto; }
+            .left-panel, .right-panel { width: 100%; border: none; border-bottom: 1px solid var(--border); padding: 16px; max-height: 40vh; }
+            .center-panel { height: 50vh; min-height: 300px; }
+            .canvas-controls { flex-wrap: wrap; justify-content: center; gap: 12px; padding: 12px 16px; }
+            .time-slider { min-width: 150px; }
+            .header h1 { font-size: 18px; }
+            .header { padding: 12px 16px; }
+            .liquid-grid { grid-template-columns: repeat(4, 1fr); }
+            .liquid-option .liquid-name { font-size: 11px; }
+            .liquid-option .liquid-icon { font-size: 24px; }
+        }
+        
+        @media (max-width: 480px) {
+            .header { flex-direction: column; align-items: flex-start; }
+            .status-bar { align-self: flex-end; }
+            .left-panel, .right-panel { padding: 12px; }
+            .param-row { margin-bottom: 12px; }
+            .btn { padding: 12px; font-size: 14px; }
+            .canvas-controls { bottom: 10px; left: 10px; right: 10px; transform: none; }
+            .time-display { font-size: 18px; }
+            .control-btn { width: 36px; height: 36px; }
+            .probe-info { top: 10px; left: 10px; right: 10px; min-width: auto; }
+            .chart-container canvas { height: 180px !important; }
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <div>
-            <h1>硬核喝水模拟器</h1>
-            <div class="subtitle">用PINN物理神经网络解决最日常的喝水问题</div>
+        <div class="logo">
+            <div class="logo-icon">🍵</div>
+            <div>
+                <h1>智能饮水助手</h1>
+                <div class="subtitle">科学计算最佳饮用时间</div>
+            </div>
         </div>
         <div class="status-bar" id="status-bar">
+            <span class="dot"></span>
             <span id="status-text">准备就绪</span>
         </div>
     </div>
 
     <div class="main-container">
-        <div class="left-panel">
+        <div class="left-panel" id="left-panel">
             <div class="panel-section">
                 <h3>容器参数</h3>
                 <div class="param-row">
@@ -389,19 +502,17 @@
                 </div>
             </div>
 
-            <button class="btn btn-primary" id="start-btn">开始模拟计算</button>
-            <button class="btn btn-secondary" id="reset-btn" style="margin-top: 10px;">重置参数</button>
+            <button class="btn btn-primary" id="start-btn">
+                <span>🔬</span> 开始模拟计算
+            </button>
+            <button class="btn btn-secondary" id="reset-btn" style="margin-top: 10px;">
+                <span>🔄</span> 重置参数
+            </button>
 
-            <div class="physics-equation">
-                ∂T/∂t = α(∂²T/∂r² + (1/r)∂T/∂r + ∂²T/∂h²)
-            </div>
-            
-            <div class="cool-fact">
-                💡 PINN物理信息神经网络：将物理方程作为损失函数约束，让AI学会热传导规律
-            </div>
-
-            <div class="science-joke">
-                「为什么物理学家不爱喝水？因为他们总是在计算熵增...」
+            <div class="physics-info">
+                <div class="title">热传导方程</div>
+                <div class="equation">∂T/∂t = α(∂²T/∂r² + ∂²T/∂h²)</div>
+                <div class="fact">基于物理信息神经网络(PINN)进行热传导模拟，将物理方程作为损失函数约束</div>
             </div>
         </div>
 
@@ -417,15 +528,18 @@
             </div>
 
             <div class="probe-info" id="probe-info">
-                <div>探针位置: (<span id="probe-x">0</span>, <span id="probe-y">0</span>, <span id="probe-z">0</span>)</div>
-                <div>当前温度: <span class="probe-temp" id="probe-temp">0</span>°C</div>
-                <button class="btn btn-secondary" id="add-probe-btn" style="margin-top: 10px;">添加到图表</button>
+                <div class="probe-header">
+                    <span>探针读数</span>
+                    <span class="probe-temp" id="probe-temp">0</span>°C
+                </div>
+                <div class="probe-coords">位置: (<span id="probe-x">0</span>, <span id="probe-y">0</span>, <span id="probe-z">0</span>)</div>
+                <button class="btn btn-secondary" id="add-probe-btn">添加到图表</button>
             </div>
         </div>
 
-        <div class="right-panel">
+        <div class="right-panel" id="right-panel">
             <div class="panel-section">
-                <h3>温度-时间曲线</h3>
+                <h3>温度变化曲线</h3>
                 <div class="chart-container">
                     <canvas id="temp-chart"></canvas>
                 </div>
@@ -435,20 +549,32 @@
                 <h3>智能饮水建议</h3>
                 <div class="advice-card" id="advice-card">
                     <h4>🧠 AI 饮水策略分析</h4>
-                    <p>点击「开始模拟计算」按钮，系统将基于PINN物理信息神经网络进行热传导模拟，为您生成最优饮水方案。</p>
+                    <p>点击「开始模拟计算」按钮，系统将基于物理信息神经网络进行热传导模拟，为您生成最优饮水方案。</p>
                     <div class="strategy">
-                        <strong>提示：</strong>使用探针功能在3D模型中点击任意位置，可查看该点的温度变化曲线。
+                        <strong>💡 提示：</strong>点击3D模型任意位置放置探针，可查看该点的温度变化曲线。
                     </div>
                 </div>
             </div>
 
             <div class="panel-section">
                 <h3>物理参数</h3>
-                <div style="font-size: 11px; color: #666; line-height: 1.8;">
-                    <div><strong>比热容:</strong> <span id="cp-value">4186</span> J/kg·°C</div>
-                    <div><strong>导热系数:</strong> <span id="k-value">0.6</span> W/m·°C</div>
-                    <div><strong>密度:</strong> <span id="rho-value">998</span> kg/m³</div>
-                    <div><strong>热扩散率:</strong> <span id="alpha-value">1.47e-7</span> m²/s</div>
+                <div class="physics-params">
+                    <div class="param-item">
+                        <span class="param-label">比热容</span>
+                        <span class="param-val" id="cp-value">4186</span> J/kg·°C
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">导热系数</span>
+                        <span class="param-val" id="k-value">0.6</span> W/m·°C
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">密度</span>
+                        <span class="param-val" id="rho-value">998</span> kg/m³
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">热扩散率</span>
+                        <span class="param-val" id="alpha-value">1.47e-7</span> m²/s
+                    </div>
                 </div>
             </div>
         </div>

@@ -91,6 +91,8 @@ class HeatConductionEngine {
                             const heatLoss = (currentTemp - ambientTemp) / (wallResistance + 1 / h_conv);
                             d2T_dr2 = -heatLoss / (this.liquid.k * dr);
                             dT_dr = -heatLoss / this.liquid.k;
+                        } else if (i === 0) {
+                            d2T_dr2 = (this.grid.data[1][j][k] - currentTemp) / (dr * dr);
                         }
                         
                         if (j > 0 && j < nh - 1) {
@@ -104,8 +106,8 @@ class HeatConductionEngine {
                             d2T_dh2 = -heatLoss / (this.liquid.k * dh);
                         }
                         
-                        const dT_dt = alpha * (d2T_dr2 + dT_dr / (r + 0.001) + d2T_dh2);
-                        newData[i][j][k] = Math.max(ambientTemp, currentTemp + dT_dt * dt);
+                        const dT_dt = alpha * (d2T_dr2 + (r > 0 ? dT_dr / r : 0) + d2T_dh2);
+                        newData[i][j][k] = Math.max(ambientTemp, Math.min(this.params.initialTemp, currentTemp + dT_dt * dt));
                     }
                 }
             }
@@ -121,15 +123,20 @@ class HeatConductionEngine {
     }
     
     getTemperatureAtPosition(x, y, z, timeIndex) {
-        if (!this.timeSteps[timeIndex]) return this.params.initialTemp;
+        if (!this.timeSteps || !this.timeSteps[timeIndex]) return this.params.initialTemp;
         
         const grid = this.timeSteps[timeIndex];
         const { rMax, hMax, nr, nh } = grid;
         
         const r = Math.sqrt(x * x + z * z);
+        
+        if (r > rMax) {
+            return this.params.ambientTemp;
+        }
+        
         const h = y + hMax / 2;
         
-        if (r > rMax || h < 0 || h > hMax) {
+        if (h < 0 || h > hMax) {
             return this.params.ambientTemp;
         }
         
@@ -144,6 +151,8 @@ class HeatConductionEngine {
     
     getProbeData(x, y, z) {
         const data = [];
+        if (!this.timeSteps || this.timeSteps.length === 0) return data;
+        
         for (let t = 0; t < this.timeSteps.length; t++) {
             const time = t * this.timeStep * 5;
             const temp = this.getTemperatureAtPosition(x, y, z, t);
@@ -161,11 +170,28 @@ class HeatConductionEngine {
         
         const analyzePhase = (timeStart, timeEnd, description) => {
             const temps = [];
-            for (let t = timeStart; t <= timeEnd; t += 10) {
-                const centerTemp = this.getTemperatureAtPosition(0, 0, 0, Math.floor(t / 5));
-                const edgeTemp = this.getTemperatureAtPosition(this.grid.rMax * 0.8, 0, 0, Math.floor(t / 5));
-                const surfaceTemp = this.getTemperatureAtPosition(0, this.grid.hMax * 0.8, 0, Math.floor(t / 5));
-                temps.push({ centerTemp, edgeTemp, surfaceTemp });
+            const stepSize = Math.max(1, Math.floor((timeEnd - timeStart) / 10));
+            for (let t = timeStart; t <= timeEnd; t += stepSize) {
+                const timeIndex = Math.floor(t / 5);
+                if (timeIndex >= 0 && timeIndex < this.timeSteps.length) {
+                    const centerTemp = this.getTemperatureAtPosition(0, 0, 0, timeIndex);
+                    const edgeTemp = this.getTemperatureAtPosition(
+                        Math.max(0.1, this.grid.rMax * 0.8), 0, 0, timeIndex
+                    );
+                    const surfaceTemp = this.getTemperatureAtPosition(
+                        0, Math.max(0.1, this.grid.hMax * 0.8), 0, timeIndex
+                    );
+                    temps.push({ centerTemp, edgeTemp, surfaceTemp });
+                }
+            }
+            
+            if (temps.length === 0) {
+                return {
+                    timeRange: `${timeStart}s - ${timeEnd}s`,
+                    description,
+                    bestPosition: '',
+                    temps: { avgCenter: this.params.initialTemp, avgEdge: this.params.initialTemp, avgSurface: this.params.initialTemp }
+                };
             }
             
             const avgCenter = temps.reduce((sum, t) => sum + t.centerTemp, 0) / temps.length;

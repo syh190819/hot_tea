@@ -135,28 +135,67 @@ class WaterSimulatorApp {
             },
             options: {
                 responsive: true,
-                scales: {
-                    x: {
-                        title: { display: true, text: '时间 (秒)', color: '#666' },
-                        ticks: { color: '#666' },
-                        grid: { color: '#2a2a4a' }
-                    },
-                    y: {
-                        title: { display: true, text: '温度 (°C)', color: '#666' },
-                        ticks: { color: '#666' },
-                        grid: { color: '#2a2a4a' },
-                        min: 0,
-                        max: 100
-                    }
-                },
-                plugins: {
-                    legend: {
-                        labels: { color: '#aaa' }
-                    }
-                },
+                maintainAspectRatio: false,
                 interaction: {
                     mode: 'index',
                     intersect: false
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            color: '#B0B0B0',
+                            font: { size: 11 },
+                            usePointStyle: true,
+                            padding: 12
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(36, 36, 36, 0.95)',
+                        titleColor: '#FFFFFF',
+                        bodyColor: '#B0B0B0',
+                        borderColor: '#3D3D3D',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: true
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(61, 61, 61, 0.3)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#6B6B6B',
+                            font: { size: 11 }
+                        },
+                        title: {
+                            display: true,
+                            text: '时间 (秒)',
+                            color: '#6B6B6B',
+                            font: { size: 12, weight: 500 }
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(61, 61, 61, 0.3)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#6B6B6B',
+                            font: { size: 11 }
+                        },
+                        title: {
+                            display: true,
+                            text: '温度 (°C)',
+                            color: '#6B6B6B',
+                            font: { size: 12, weight: 500 }
+                        },
+                        min: 0,
+                        max: 100
+                    }
                 }
             }
         });
@@ -173,8 +212,10 @@ class WaterSimulatorApp {
             this.updateVisualization();
             this.generateAdvice();
             
-            document.getElementById('time-slider').max = this.timeSteps.length - 1;
-            document.getElementById('time-slider').value = 0;
+            if (this.timeSteps.length > 0) {
+                document.getElementById('time-slider').max = this.timeSteps.length - 1;
+                document.getElementById('time-slider').value = 0;
+            }
             
             this.updateStatus('计算完成', false);
         }, 100);
@@ -202,7 +243,7 @@ class WaterSimulatorApp {
             <h4>🧠 AI 饮水策略分析</h4>
             <p>点击「开始模拟计算」按钮，系统将基于PINN物理信息神经网络进行热传导模拟，为您生成最优饮水方案。</p>
             <div class="strategy">
-                <strong>提示：</strong>使用探针功能在3D模型中点击任意位置，可查看该点的温度变化曲线。
+                <strong>💡 提示：</strong>点击3D模型任意位置放置探针，可查看该点的温度变化曲线。
             </div>
         `;
         
@@ -221,24 +262,28 @@ class WaterSimulatorApp {
         container.innerHTML = '';
         
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x0a0a15);
+        this.scene.background = new THREE.Color(0x1A1A1A);
         
         const width = container.clientWidth;
         const height = container.clientHeight;
         this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-        this.camera.position.set(0, 50, 150);
+        this.camera.position.set(0, 50, 180);
         
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(width, height);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(this.renderer.domElement);
         
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         this.scene.add(ambientLight);
         
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(50, 100, 50);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        directionalLight.position.set(60, 120, 60);
         this.scene.add(directionalLight);
+        
+        const pointLight = new THREE.PointLight(0xFF5A5F, 0.3);
+        pointLight.position.set(-40, 80, -40);
+        this.scene.add(pointLight);
         
         this.createCup();
         this.createLiquid();
@@ -257,9 +302,9 @@ class WaterSimulatorApp {
         
         const geometry = new THREE.CylinderGeometry(innerRadius, outerRadius, height, 32, 1, true);
         const material = new THREE.MeshPhongMaterial({
-            color: 0x4a4a6a,
+            color: 0x3D3D3D,
             transparent: true,
-            opacity: 0.3,
+            opacity: 0.4,
             side: THREE.DoubleSide
         });
         
@@ -273,14 +318,18 @@ class WaterSimulatorApp {
         const liquidHeight = height - wallThickness * 2 - 2;
         
         const segments = 32;
-        const rings = 20;
+        const rings = 24;
         
         const geometry = new THREE.CylinderGeometry(radius, radius, liquidHeight, segments, rings);
         const positions = geometry.attributes.position;
         
         const colors = new Float32Array(positions.count * 3);
+        const liquidHeightHalf = liquidHeight / 2;
         
         for (let i = 0; i < positions.count; i++) {
+            const y = positions.getY(i);
+            const normalizedHeight = (y + liquidHeightHalf) / liquidHeight;
+            
             const temp = this.params.initialTemp;
             const color = this.tempToColor(temp);
             colors[i * 3] = color.r;
@@ -293,8 +342,8 @@ class WaterSimulatorApp {
         const material = new THREE.MeshPhongMaterial({
             vertexColors: true,
             transparent: true,
-            opacity: 0.9,
-            shininess: 100
+            opacity: 0.95,
+            shininess: 120
         });
         
         this.mesh = new THREE.Mesh(geometry, material);
@@ -305,34 +354,42 @@ class WaterSimulatorApp {
     tempToColor(temp) {
         const minTemp = this.params.ambientTemp;
         const maxTemp = this.params.initialTemp;
+        const tempRange = maxTemp - minTemp;
         
-        const normalized = Math.max(0, Math.min(1, (temp - minTemp) / (maxTemp - minTemp)));
+        if (tempRange <= 0) {
+            return { r: 0.5, g: 0.5, b: 0.5 };
+        }
         
-        if (normalized < 0.3) {
-            const t = normalized / 0.3;
-            return { r: 0, g: t, b: 1 };
-        } else if (normalized < 0.6) {
-            const t = (normalized - 0.3) / 0.3;
+        const normalized = Math.max(0, Math.min(1, (temp - minTemp) / tempRange));
+        
+        if (normalized < 0.25) {
+            const t = normalized / 0.25;
+            return { r: 0, g: 0.3 + t * 0.7, b: 1 };
+        } else if (normalized < 0.5) {
+            const t = (normalized - 0.25) / 0.25;
             return { r: 0, g: 1, b: 1 - t };
-        } else if (normalized < 0.8) {
-            const t = (normalized - 0.6) / 0.2;
-            return { r: t, g: 1 - t * 0.5, b: 0 };
+        } else if (normalized < 0.75) {
+            const t = (normalized - 0.5) / 0.25;
+            return { r: t, g: 1 - t * 0.3, b: 0 };
         } else {
-            const t = (normalized - 0.8) / 0.2;
-            return { r: 1, g: 0.5 - t * 0.5, b: 0 };
+            const t = (normalized - 0.75) / 0.25;
+            return { r: 1, g: 0.7 - t * 0.7, b: 0 };
         }
     }
     
     updateVisualization() {
-        if (!this.mesh || !this.timeSteps[this.currentTimeIndex]) return;
+        if (!this.mesh || !this.physicsEngine || !this.timeSteps[this.currentTimeIndex]) return;
         
         const grid = this.timeSteps[this.currentTimeIndex];
         const positions = this.mesh.geometry.attributes.position;
         const colors = this.mesh.geometry.attributes.color;
+        const { height, wallThickness } = this.params;
+        const liquidHeight = height - wallThickness * 2 - 2;
+        const liquidHeightHalf = liquidHeight / 2;
         
         for (let i = 0; i < positions.count; i++) {
             const x = positions.getX(i);
-            const y = positions.getY(i) + (this.params.height - this.params.wallThickness * 2) / 2;
+            const y = positions.getY(i) + liquidHeightHalf;
             const z = positions.getZ(i);
             
             const temp = this.physicsEngine.getTemperatureAtPosition(x, y, z, this.currentTimeIndex);
@@ -344,9 +401,10 @@ class WaterSimulatorApp {
         colors.needsUpdate = true;
         
         if (this.probePoint) {
+            const probeY = this.probePoint.position.y + liquidHeightHalf;
             const probeTemp = this.physicsEngine.getTemperatureAtPosition(
                 this.probePoint.position.x,
-                this.probePoint.position.y + (this.params.height - this.params.wallThickness * 2) / 2,
+                probeY,
                 this.probePoint.position.z,
                 this.currentTimeIndex
             );
@@ -377,8 +435,8 @@ class WaterSimulatorApp {
                     this.scene.remove(this.probePoint);
                 }
                 
-                const probeGeometry = new THREE.SphereGeometry(3, 16, 16);
-                const probeMaterial = new THREE.MeshBasicMaterial({ color: 0xff6b6b });
+                const probeGeometry = new THREE.SphereGeometry(2.5, 16, 16);
+                const probeMaterial = new THREE.MeshBasicMaterial({ color: 0xFF5A5F });
                 this.probePoint = new THREE.Mesh(probeGeometry, probeMaterial);
                 this.probePoint.position.copy(point);
                 this.scene.add(this.probePoint);
@@ -389,9 +447,14 @@ class WaterSimulatorApp {
                 document.getElementById('probe-y').textContent = point.y.toFixed(1);
                 document.getElementById('probe-z').textContent = point.z.toFixed(1);
                 
+                const { height, wallThickness } = this.params;
+                const liquidHeight = height - wallThickness * 2 - 2;
+                const liquidHeightHalf = liquidHeight / 2;
+                const probeY = point.y + liquidHeightHalf;
+                
                 const temp = this.physicsEngine.getTemperatureAtPosition(
                     point.x,
-                    point.y + (this.params.height - this.params.wallThickness * 2) / 2,
+                    probeY,
                     point.z,
                     this.currentTimeIndex
                 );
@@ -407,13 +470,18 @@ class WaterSimulatorApp {
     addProbeToChart() {
         if (!this.currentProbePosition || !this.physicsEngine) return;
         
+        const { height, wallThickness } = this.params;
+        const liquidHeight = height - wallThickness * 2 - 2;
+        const liquidHeightHalf = liquidHeight / 2;
+        const probeY = this.currentProbePosition.y + liquidHeightHalf;
+        
         const data = this.physicsEngine.getProbeData(
             this.currentProbePosition.x,
-            this.currentProbePosition.y + (this.params.height - this.params.wallThickness * 2) / 2,
+            probeY,
             this.currentProbePosition.z
         );
         
-        const colors = ['#00d4ff', '#ff6b6b', '#00ff88', '#ffd700', '#ff69b4'];
+        const colors = ['#FF5A5F', '#00A699', '#FFD700', '#FF69B4', '#00D4FF', '#FC642D'];
         const color = colors[this.probes.length % colors.length];
         
         const label = `位置 (${this.currentProbePosition.x.toFixed(1)}, ${this.currentProbePosition.y.toFixed(1)}, ${this.currentProbePosition.z.toFixed(1)})`;
@@ -427,7 +495,8 @@ class WaterSimulatorApp {
             borderWidth: 2,
             tension: 0.4,
             fill: false,
-            pointRadius: 0
+            pointRadius: 0,
+            pointHoverRadius: 6
         });
         
         this.tempChart.update();
@@ -448,7 +517,7 @@ class WaterSimulatorApp {
             html += `<p><strong>最佳饮用时间：</strong>等待约 ${minutes}分${seconds}秒 后开始饮用</p>`;
         }
         
-        html += `<div style="margin-top: 15px;">`;
+        html += `<div style="margin-top: 16px;">`;
         
         for (const phase of strategy.phases) {
             const isGood = phase.bestPosition && 
@@ -456,14 +525,17 @@ class WaterSimulatorApp {
                 phase.temps.avgCenter <= this.params.targetMaxTemp;
             
             html += `
-                <div style="margin-bottom: 10px; padding: 8px; background: ${isGood ? '#00d4ff11' : '#2a2a4a'}; border-radius: 4px;">
-                    <div style="font-size: 11px; color: #00d4ff; margin-bottom: 4px;">${phase.timeRange} - ${phase.description}</div>
-                    <div style="font-size: 10px; color: #aaa;">
-                        中心: ${phase.temps.avgCenter.toFixed(1)}°C | 
-                        边缘: ${phase.temps.avgEdge.toFixed(1)}°C | 
-                        表层: ${phase.temps.avgSurface.toFixed(1)}°C
+                <div class="phase-card">
+                    <div class="phase-header">
+                        <span class="phase-time">${phase.timeRange}</span>
+                        <span class="phase-name">${phase.description}</span>
                     </div>
-                    ${phase.bestPosition ? `<div style="font-size: 11px; color: #00ff88; margin-top: 4px;">📍 ${phase.bestPosition}</div>` : ''}
+                    <div class="phase-temps">
+                        <span>中心: ${phase.temps.avgCenter.toFixed(1)}°C</span>
+                        <span>边缘: ${phase.temps.avgEdge.toFixed(1)}°C</span>
+                        <span>表层: ${phase.temps.avgSurface.toFixed(1)}°C</span>
+                    </div>
+                    ${phase.bestPosition ? `<div class="phase-best">📍 ${phase.bestPosition}</div>` : ''}
                 </div>
             `;
         }
