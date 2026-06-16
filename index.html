@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>硬核喝水模拟器 - 用AI物理计算解决日常喝水问题</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f23; color: #e0e0e0; overflow: hidden; }
+        
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 15px 30px;
+            border-bottom: 2px solid #3d5a80;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 100;
+        }
+        .header h1 { font-size: 28px; background: linear-gradient(90deg, #00d4ff, #7b2cbf, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; text-shadow: 0 0 30px rgba(0, 212, 255, 0.3); }
+        .header .subtitle { font-size: 14px; color: #ff6b6b; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; }
+        
+        .header::before {
+            content: '📐';
+            font-size: 32px;
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            animation: rotate 3s linear infinite;
+        }
+        @keyframes rotate {
+            from { transform: translateY(-50%) rotate(0deg); }
+            to { transform: translateY(-50%) rotate(360deg); }
+        }
+        
+        .main-container { display: flex; height: calc(100vh - 60px); }
+        
+        .left-panel {
+            width: 320px;
+            background: rgba(26, 26, 46, 0.95);
+            border-right: 1px solid #2a2a4a;
+            padding: 20px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+        }
+        .left-panel::-webkit-scrollbar { width: 6px; }
+        .left-panel::-webkit-scrollbar-track { background: #1a1a2e; }
+        .left-panel::-webkit-scrollbar-thumb { background: #3d5a80; border-radius: 3px; }
+        
+        .panel-section { margin-bottom: 25px; }
+        .panel-section h3 {
+            font-size: 14px;
+            color: #00d4ff;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #2a2a4a;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .param-row { margin-bottom: 12px; }
+        .param-row label { display: block; font-size: 12px; color: #aaa; margin-bottom: 5px; }
+        .param-row input[type="range"] { width: 100%; height: 6px; background: #2a2a4a; border-radius: 3px; outline: none; }
+        .param-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #00d4ff; border-radius: 50%; cursor: pointer; }
+        .param-row input[type="number"], .param-row select {
+            width: 100%;
+            padding: 8px 12px;
+            background: #2a2a4a;
+            border: 1px solid #3d5a80;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 13px;
+            outline: none;
+        }
+        .param-row input[type="number"]:focus, .param-row select:focus { border-color: #00d4ff; }
+        
+        .param-value { font-size: 11px; color: #00d4ff; float: right; }
+        
+        .liquid-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .liquid-option {
+            padding: 10px;
+            background: #2a2a4a;
+            border: 1px solid #3d5a80;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        .liquid-option:hover { border-color: #00d4ff; background: #1e3a5f; }
+        .liquid-option.active { border-color: #00d4ff; background: #00d4ff22; }
+        .liquid-option .liquid-icon { font-size: 24px; margin-bottom: 5px; }
+        .liquid-option .liquid-name { font-size: 12px; }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            color: #0f0f23;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3); }
+        .btn-secondary {
+            background: #2a2a4a;
+            color: #e0e0e0;
+            border: 1px solid #3d5a80;
+        }
+        .btn-secondary:hover { background: #3d5a80; }
+        
+        .center-panel {
+            flex: 1;
+            position: relative;
+            background: #0a0a15;
+        }
+        #canvas-container { width: 100%; height: 100%; }
+        
+        .canvas-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(26, 26, 46, 0.9);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 1px solid #2a2a4a;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .time-display {
+            font-family: 'Courier New', monospace;
+            font-size: 20px;
+            color: #00d4ff;
+            min-width: 100px;
+            text-align: center;
+        }
+        
+        .time-slider { flex: 1; min-width: 200px; }
+        
+        .control-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: #2a2a4a;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        .control-btn:hover { background: #3d5a80; }
+        .control-btn.play { background: #00d4ff; color: #0f0f23; }
+        
+        .probe-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(26, 26, 46, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #2a2a4a;
+            font-size: 12px;
+            color: #aaa;
+            display: none;
+        }
+        .probe-info.active { display: block; }
+        .probe-info .probe-temp { font-size: 20px; color: #ff6b6b; font-weight: bold; }
+        
+        .right-panel {
+            width: 350px;
+            background: rgba(26, 26, 46, 0.95);
+            border-left: 1px solid #2a2a4a;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .chart-container {
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #2a2a4a;
+        }
+        .chart-container canvas { width: 100% !important; height: 200px !important; }
+        
+        .advice-card {
+            background: linear-gradient(135deg, #1e3a5f 0%, #1a1a2e 100%);
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #3d5a80;
+        }
+        .advice-card h4 {
+            color: #00d4ff;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+        .advice-card p {
+            font-size: 12px;
+            line-height: 1.6;
+            color: #ccc;
+            margin-bottom: 8px;
+        }
+        .advice-card .strategy {
+            background: #00d4ff11;
+            border-left: 3px solid #00d4ff;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 0 4px 4px 0;
+        }
+        .advice-card .strategy strong { color: #00d4ff; }
+        
+        .status-bar {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #666;
+            border: 1px solid #2a2a4a;
+            font-family: 'Courier New', monospace;
+        }
+        .status-bar .computing { 
+            color: #ff6b6b; 
+            animation: pulse 1s infinite;
+            text-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        .status-bar::before {
+            content: '🔬';
+            margin-right: 8px;
+        }
+        
+        .science-joke {
+            font-size: 11px;
+            color: #00d4ff;
+            margin-top: 15px;
+            padding: 12px;
+            background: #00d4ff08;
+            border-radius: 6px;
+            border: 1px dashed #00d4ff33;
+            font-style: italic;
+            text-align: center;
+            animation: fadeIn 2s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .physics-equation {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            font-size: 11px;
+            color: #7b2cbf;
+            text-align: center;
+            margin-bottom: 15px;
+            padding: 8px;
+            background: #7b2cbf08;
+            border-radius: 4px;
+        }
+        
+        .cool-fact {
+            font-size: 10px;
+            color: #00ff88;
+            padding: 8px;
+            background: #00ff8808;
+            border-radius: 4px;
+            margin-top: 10px;
+            border-left: 2px solid #00ff88;
+        }
+        
+        .target-temp-display {
+            background: #2a2a4a;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .target-temp-display .label { font-size: 11px; color: #666; }
+        .target-temp-display .range { font-size: 20px; color: #00ff88; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>硬核喝水模拟器</h1>
+            <div class="subtitle">用PINN物理神经网络解决最日常的喝水问题</div>
+        </div>
+        <div class="status-bar" id="status-bar">
+            <span id="status-text">准备就绪</span>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="left-panel">
+            <div class="panel-section">
+                <h3>容器参数</h3>
+                <div class="param-row">
+                    <label>杯子形状 <span class="param-value" id="shape-value">圆柱形</span></label>
+                    <select id="shape-select">
+                        <option value="cylinder">圆柱形</option>
+                        <option value="cone">锥形</option>
+                        <option value="cube">方杯</option>
+                    </select>
+                </div>
+                <div class="param-row">
+                    <label>直径 (mm) <span class="param-value" id="diameter-value">80</span></label>
+                    <input type="range" id="diameter-slider" min="50" max="150" value="80" step="5">
+                    <input type="number" id="diameter-input" min="50" max="150" value="80">
+                </div>
+                <div class="param-row">
+                    <label>高度 (mm) <span class="param-value" id="height-value">120</span></label>
+                    <input type="range" id="height-slider" min="60" max="200" value="120" step="10">
+                    <input type="number" id="height-input" min="60" max="200" value="120">
+                </div>
+                <div class="param-row">
+                    <label>壁厚 (mm) <span class="param-value" id="wall-thickness-value">3</span></label>
+                    <input type="range" id="wall-thickness-slider" min="1" max="10" value="3" step="1">
+                    <input type="number" id="wall-thickness-input" min="1" max="10" value="3">
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>温度设置</h3>
+                <div class="param-row">
+                    <label>初始温度 (°C) <span class="param-value" id="initial-temp-value">85</span></label>
+                    <input type="range" id="initial-temp-slider" min="40" max="100" value="85" step="1">
+                    <input type="number" id="initial-temp-input" min="40" max="100" value="85">
+                </div>
+                <div class="param-row">
+                    <label>环境温度 (°C) <span class="param-value" id="ambient-temp-value">25</span></label>
+                    <input type="range" id="ambient-temp-slider" min="10" max="40" value="25" step="1">
+                    <input type="number" id="ambient-temp-input" min="10" max="40" value="25">
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>目标饮用温度</h3>
+                <div class="target-temp-display">
+                    <div class="label">理想温度范围</div>
+                    <div class="range" id="target-range">55 - 65°C</div>
+                </div>
+                <div class="param-row">
+                    <label>最低温度 (°C) <span class="param-value" id="target-min-value">55</span></label>
+                    <input type="range" id="target-min-slider" min="30" max="70" value="55" step="1">
+                </div>
+                <div class="param-row">
+                    <label>最高温度 (°C) <span class="param-value" id="target-max-value">65</span></label>
+                    <input type="range" id="target-max-slider" min="40" max="80" value="65" step="1">
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>液体类型</h3>
+                <div class="liquid-grid">
+                    <div class="liquid-option active" data-liquid="tea">
+                        <div class="liquid-icon">🍵</div>
+                        <div class="liquid-name">茶水</div>
+                    </div>
+                    <div class="liquid-option" data-liquid="coffee">
+                        <div class="liquid-icon">☕</div>
+                        <div class="liquid-name">咖啡</div>
+                    </div>
+                    <div class="liquid-option" data-liquid="juice">
+                        <div class="liquid-icon">🍹</div>
+                        <div class="liquid-name">果汁</div>
+                    </div>
+                    <div class="liquid-option" data-liquid="water">
+                        <div class="liquid-icon">💧</div>
+                        <div class="liquid-name">白开水</div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="start-btn">开始模拟计算</button>
+            <button class="btn btn-secondary" id="reset-btn" style="margin-top: 10px;">重置参数</button>
+
+            <div class="physics-equation">
+                ∂T/∂t = α(∂²T/∂r² + (1/r)∂T/∂r + ∂²T/∂h²)
+            </div>
+            
+            <div class="cool-fact">
+                💡 PINN物理信息神经网络：将物理方程作为损失函数约束，让AI学会热传导规律
+            </div>
+
+            <div class="science-joke">
+                「为什么物理学家不爱喝水？因为他们总是在计算熵增...」
+            </div>
+        </div>
+
+        <div class="center-panel">
+            <div id="canvas-container"></div>
+            
+            <div class="canvas-controls">
+                <button class="control-btn" id="step-back-btn">⏮</button>
+                <button class="control-btn play" id="play-btn">▶</button>
+                <button class="control-btn" id="step-forward-btn">⏭</button>
+                <div class="time-display" id="time-display">00:00</div>
+                <input type="range" class="time-slider" id="time-slider" min="0" max="100" value="0">
+            </div>
+
+            <div class="probe-info" id="probe-info">
+                <div>探针位置: (<span id="probe-x">0</span>, <span id="probe-y">0</span>, <span id="probe-z">0</span>)</div>
+                <div>当前温度: <span class="probe-temp" id="probe-temp">0</span>°C</div>
+                <button class="btn btn-secondary" id="add-probe-btn" style="margin-top: 10px;">添加到图表</button>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="panel-section">
+                <h3>温度-时间曲线</h3>
+                <div class="chart-container">
+                    <canvas id="temp-chart"></canvas>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>智能饮水建议</h3>
+                <div class="advice-card" id="advice-card">
+                    <h4>🧠 AI 饮水策略分析</h4>
+                    <p>点击「开始模拟计算」按钮，系统将基于PINN物理信息神经网络进行热传导模拟，为您生成最优饮水方案。</p>
+                    <div class="strategy">
+                        <strong>提示：</strong>使用探针功能在3D模型中点击任意位置，可查看该点的温度变化曲线。
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>物理参数</h3>
+                <div style="font-size: 11px; color: #666; line-height: 1.8;">
+                    <div><strong>比热容:</strong> <span id="cp-value">4186</span> J/kg·°C</div>
+                    <div><strong>导热系数:</strong> <span id="k-value">0.6</span> W/m·°C</div>
+                    <div><strong>密度:</strong> <span id="rho-value">998</span> kg/m³</div>
+                    <div><strong>热扩散率:</strong> <span id="alpha-value">1.47e-7</span> m²/s</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <script src="physics-engine.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
