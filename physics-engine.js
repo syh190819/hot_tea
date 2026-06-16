@@ -22,8 +22,8 @@ class HeatConductionEngine {
         const rMax = diameter / 2 - wallThickness;
         const hMax = height - wallThickness * 2;
         
-        const nr = 16;
-        const nh = 20;
+        const nr = 20;
+        const nh = 24;
         const nTheta = 8;
         
         const dr = rMax / (nr - 1);
@@ -65,8 +65,8 @@ class HeatConductionEngine {
         const { dr, dh, nr, nh, nTheta } = this.grid;
         const { ambientTemp, wallThickness } = this.params;
         
-        const h_conv = 10;
-        const h_evap = 5;
+        const h_conv = 15;
+        const h_evap = 8;
         const k_wall = 1.0;
         
         for (let step = 0; step < this.numSteps; step++) {
@@ -76,7 +76,6 @@ class HeatConductionEngine {
                 for (let j = 0; j < nh; j++) {
                     for (let k = 0; k < nTheta; k++) {
                         const r = i * dr;
-                        const h = j * dh;
                         const currentTemp = this.grid.data[i][j][k];
                         
                         let d2T_dr2 = 0;
@@ -107,7 +106,9 @@ class HeatConductionEngine {
                         }
                         
                         const dT_dt = alpha * (d2T_dr2 + (r > 0 ? dT_dr / r : 0) + d2T_dh2);
-                        newData[i][j][k] = Math.max(ambientTemp, Math.min(this.params.initialTemp, currentTemp + dT_dt * dt));
+                        const newTemp = currentTemp + dT_dt * dt;
+                        
+                        newData[i][j][k] = Math.max(ambientTemp, Math.min(this.params.initialTemp, newTemp));
                     }
                 }
             }
@@ -134,7 +135,7 @@ class HeatConductionEngine {
             return this.params.ambientTemp;
         }
         
-        const h = y + hMax / 2;
+        const h = y;
         
         if (h < 0 || h > hMax) {
             return this.params.ambientTemp;
@@ -174,9 +175,9 @@ class HeatConductionEngine {
             for (let t = timeStart; t <= timeEnd; t += stepSize) {
                 const timeIndex = Math.floor(t / 5);
                 if (timeIndex >= 0 && timeIndex < this.timeSteps.length) {
-                    const centerTemp = this.getTemperatureAtPosition(0, 0, 0, timeIndex);
+                    const centerTemp = this.getTemperatureAtPosition(0, this.grid.hMax / 2, 0, timeIndex);
                     const edgeTemp = this.getTemperatureAtPosition(
-                        Math.max(0.1, this.grid.rMax * 0.8), 0, 0, timeIndex
+                        Math.max(0.1, this.grid.rMax * 0.8), this.grid.hMax / 2, 0, timeIndex
                     );
                     const surfaceTemp = this.getTemperatureAtPosition(
                         0, Math.max(0.1, this.grid.hMax * 0.8), 0, timeIndex
@@ -263,7 +264,7 @@ class HeatConductionEngine {
         const { targetMinTemp, targetMaxTemp } = this.params;
         
         for (let t = 0; t < this.timeSteps.length; t++) {
-            const centerTemp = this.getTemperatureAtPosition(0, 0, 0, t);
+            const centerTemp = this.getTemperatureAtPosition(0, this.grid.hMax / 2, 0, t);
             if (centerTemp <= targetMaxTemp && centerTemp >= targetMinTemp) {
                 return t * this.timeStep * 5;
             }

@@ -3,6 +3,7 @@ class WaterSimulatorApp {
         this.scene = null;
         this.camera = null;
         this.renderer = null;
+        this.controls = null;
         this.mesh = null;
         this.cupMesh = null;
         this.probePoint = null;
@@ -10,7 +11,6 @@ class WaterSimulatorApp {
         this.physicsEngine = null;
         this.timeSteps = [];
         this.currentTimeIndex = 0;
-        this.isPlaying = false;
         this.animationId = null;
         
         this.tempChart = null;
@@ -93,9 +93,6 @@ class WaterSimulatorApp {
         document.getElementById('start-btn').addEventListener('click', () => this.startSimulation());
         document.getElementById('reset-btn').addEventListener('click', () => this.resetSimulation());
         
-        document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
-        document.getElementById('step-back-btn').addEventListener('click', () => this.stepBack());
-        document.getElementById('step-forward-btn').addEventListener('click', () => this.stepForward());
         document.getElementById('time-slider').addEventListener('input', (e) => {
             this.currentTimeIndex = parseInt(e.target.value);
             this.updateVisualization();
@@ -145,17 +142,17 @@ class WaterSimulatorApp {
                         display: true,
                         position: 'top',
                         labels: {
-                            color: '#B0B0B0',
+                            color: '#636E72',
                             font: { size: 11 },
                             usePointStyle: true,
                             padding: 12
                         }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(36, 36, 36, 0.95)',
-                        titleColor: '#FFFFFF',
-                        bodyColor: '#B0B0B0',
-                        borderColor: '#3D3D3D',
+                        backgroundColor: 'rgba(248, 249, 250, 0.95)',
+                        titleColor: '#2D3436',
+                        bodyColor: '#636E72',
+                        borderColor: '#DEE2E6',
                         borderWidth: 1,
                         padding: 12,
                         displayColors: true
@@ -164,33 +161,33 @@ class WaterSimulatorApp {
                 scales: {
                     x: {
                         grid: {
-                            color: 'rgba(61, 61, 61, 0.3)',
+                            color: 'rgba(222, 226, 230, 0.5)',
                             drawBorder: false
                         },
                         ticks: {
-                            color: '#6B6B6B',
+                            color: '#95A5A6',
                             font: { size: 11 }
                         },
                         title: {
                             display: true,
                             text: '时间 (秒)',
-                            color: '#6B6B6B',
+                            color: '#95A5A6',
                             font: { size: 12, weight: 500 }
                         }
                     },
                     y: {
                         grid: {
-                            color: 'rgba(61, 61, 61, 0.3)',
+                            color: 'rgba(222, 226, 230, 0.5)',
                             drawBorder: false
                         },
                         ticks: {
-                            color: '#6B6B6B',
+                            color: '#95A5A6',
                             font: { size: 11 }
                         },
                         title: {
                             display: true,
                             text: '温度 (°C)',
-                            color: '#6B6B6B',
+                            color: '#95A5A6',
                             font: { size: 12, weight: 500 }
                         },
                         min: 0,
@@ -205,19 +202,26 @@ class WaterSimulatorApp {
         this.updateStatus('计算中...', true);
         
         setTimeout(() => {
-            this.physicsEngine = new HeatConductionEngine(this.params);
-            this.timeSteps = this.physicsEngine.solve();
-            
-            this.init3DScene();
-            this.updateVisualization();
-            this.generateAdvice();
-            
-            if (this.timeSteps.length > 0) {
-                document.getElementById('time-slider').max = this.timeSteps.length - 1;
-                document.getElementById('time-slider').value = 0;
+            try {
+                this.physicsEngine = new HeatConductionEngine(this.params);
+                this.timeSteps = this.physicsEngine.solve();
+                
+                console.log('计算完成，时间步数:', this.timeSteps.length);
+                
+                this.init3DScene();
+                this.updateVisualization();
+                this.generateAdvice();
+                
+                if (this.timeSteps.length > 0) {
+                    document.getElementById('time-slider').max = this.timeSteps.length - 1;
+                    document.getElementById('time-slider').value = 0;
+                }
+                
+                this.updateStatus('计算完成', false);
+            } catch (error) {
+                console.error('模拟计算失败:', error);
+                this.updateStatus('计算失败', false);
             }
-            
-            this.updateStatus('计算完成', false);
         }, 100);
     }
     
@@ -225,7 +229,6 @@ class WaterSimulatorApp {
         if (this.animationId) {
             cancelAnimationFrame(this.animationId);
         }
-        this.isPlaying = false;
         this.currentTimeIndex = 0;
         this.probes = [];
         
@@ -237,11 +240,10 @@ class WaterSimulatorApp {
         
         document.getElementById('time-slider').value = 0;
         document.getElementById('time-display').textContent = '00:00';
-        document.getElementById('play-btn').textContent = '▶';
         
         document.getElementById('advice-card').innerHTML = `
             <h4>🧠 AI 饮水策略分析</h4>
-            <p>点击「开始模拟计算」按钮，系统将基于PINN物理信息神经网络进行热传导模拟，为您生成最优饮水方案。</p>
+            <p>点击「开始模拟计算」按钮，系统将基于物理信息神经网络进行热传导模拟，为您生成最优饮水方案。</p>
             <div class="strategy">
                 <strong>💡 提示：</strong>点击3D模型任意位置放置探针，可查看该点的温度变化曲线。
             </div>
@@ -262,17 +264,23 @@ class WaterSimulatorApp {
         container.innerHTML = '';
         
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x1A1A1A);
+        this.scene.background = new THREE.Color(0xFFFFFF);
         
         const width = container.clientWidth;
         const height = container.clientHeight;
         this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-        this.camera.position.set(0, 50, 180);
+        this.camera.position.set(0, 60, 200);
         
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(width, height);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         container.appendChild(this.renderer.domElement);
+        
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.minDistance = 100;
+        this.controls.maxDistance = 400;
         
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         this.scene.add(ambientLight);
@@ -281,7 +289,7 @@ class WaterSimulatorApp {
         directionalLight.position.set(60, 120, 60);
         this.scene.add(directionalLight);
         
-        const pointLight = new THREE.PointLight(0xFF5A5F, 0.3);
+        const pointLight = new THREE.PointLight(0xFF5A5F, 0.2);
         pointLight.position.set(-40, 80, -40);
         this.scene.add(pointLight);
         
@@ -302,9 +310,9 @@ class WaterSimulatorApp {
         
         const geometry = new THREE.CylinderGeometry(innerRadius, outerRadius, height, 32, 1, true);
         const material = new THREE.MeshPhongMaterial({
-            color: 0x3D3D3D,
+            color: 0xDEE2E6,
             transparent: true,
-            opacity: 0.4,
+            opacity: 0.5,
             side: THREE.DoubleSide
         });
         
@@ -324,12 +332,8 @@ class WaterSimulatorApp {
         const positions = geometry.attributes.position;
         
         const colors = new Float32Array(positions.count * 3);
-        const liquidHeightHalf = liquidHeight / 2;
         
         for (let i = 0; i < positions.count; i++) {
-            const y = positions.getY(i);
-            const normalizedHeight = (y + liquidHeightHalf) / liquidHeight;
-            
             const temp = this.params.initialTemp;
             const color = this.tempToColor(temp);
             colors[i * 3] = color.r;
@@ -347,7 +351,7 @@ class WaterSimulatorApp {
         });
         
         this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.position.y = -1;
+        this.mesh.position.y = (height - liquidHeight) / 2 - wallThickness;
         this.scene.add(this.mesh);
     }
     
@@ -357,23 +361,23 @@ class WaterSimulatorApp {
         const tempRange = maxTemp - minTemp;
         
         if (tempRange <= 0) {
-            return { r: 0.5, g: 0.5, b: 0.5 };
+            return { r: 0.7, g: 0.7, b: 0.7 };
         }
         
         const normalized = Math.max(0, Math.min(1, (temp - minTemp) / tempRange));
         
-        if (normalized < 0.25) {
-            const t = normalized / 0.25;
-            return { r: 0, g: 0.3 + t * 0.7, b: 1 };
-        } else if (normalized < 0.5) {
-            const t = (normalized - 0.25) / 0.25;
-            return { r: 0, g: 1, b: 1 - t };
-        } else if (normalized < 0.75) {
-            const t = (normalized - 0.5) / 0.25;
-            return { r: t, g: 1 - t * 0.3, b: 0 };
+        if (normalized < 0.3) {
+            const t = normalized / 0.3;
+            return { r: 0.1 + t * 0.2, g: 0.5 + t * 0.4, b: 0.8 + t * 0.2 };
+        } else if (normalized < 0.6) {
+            const t = (normalized - 0.3) / 0.3;
+            return { r: 0.3, g: 0.9 - t * 0.4, b: 1 - t * 0.5 };
+        } else if (normalized < 0.8) {
+            const t = (normalized - 0.6) / 0.2;
+            return { r: 0.3 + t * 0.7, g: 0.5 - t * 0.2, b: 0.5 - t * 0.5 };
         } else {
-            const t = (normalized - 0.75) / 0.25;
-            return { r: 1, g: 0.7 - t * 0.7, b: 0 };
+            const t = (normalized - 0.8) / 0.2;
+            return { r: 1, g: 0.3 - t * 0.3, b: 0 };
         }
     }
     
@@ -385,11 +389,11 @@ class WaterSimulatorApp {
         const colors = this.mesh.geometry.attributes.color;
         const { height, wallThickness } = this.params;
         const liquidHeight = height - wallThickness * 2 - 2;
-        const liquidHeightHalf = liquidHeight / 2;
+        const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
         
         for (let i = 0; i < positions.count; i++) {
             const x = positions.getX(i);
-            const y = positions.getY(i) + liquidHeightHalf;
+            const y = positions.getY(i) + liquidBaseY;
             const z = positions.getZ(i);
             
             const temp = this.physicsEngine.getTemperatureAtPosition(x, y, z, this.currentTimeIndex);
@@ -401,7 +405,7 @@ class WaterSimulatorApp {
         colors.needsUpdate = true;
         
         if (this.probePoint) {
-            const probeY = this.probePoint.position.y + liquidHeightHalf;
+            const probeY = this.probePoint.position.y + liquidBaseY;
             const probeTemp = this.physicsEngine.getTemperatureAtPosition(
                 this.probePoint.position.x,
                 probeY,
@@ -449,8 +453,8 @@ class WaterSimulatorApp {
                 
                 const { height, wallThickness } = this.params;
                 const liquidHeight = height - wallThickness * 2 - 2;
-                const liquidHeightHalf = liquidHeight / 2;
-                const probeY = point.y + liquidHeightHalf;
+                const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
+                const probeY = point.y + liquidBaseY;
                 
                 const temp = this.physicsEngine.getTemperatureAtPosition(
                     point.x,
@@ -472,8 +476,8 @@ class WaterSimulatorApp {
         
         const { height, wallThickness } = this.params;
         const liquidHeight = height - wallThickness * 2 - 2;
-        const liquidHeightHalf = liquidHeight / 2;
-        const probeY = this.currentProbePosition.y + liquidHeightHalf;
+        const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
+        const probeY = this.currentProbePosition.y + liquidBaseY;
         
         const data = this.physicsEngine.getProbeData(
             this.currentProbePosition.x,
@@ -520,10 +524,6 @@ class WaterSimulatorApp {
         html += `<div style="margin-top: 16px;">`;
         
         for (const phase of strategy.phases) {
-            const isGood = phase.bestPosition && 
-                phase.temps.avgCenter >= this.params.targetMinTemp && 
-                phase.temps.avgCenter <= this.params.targetMaxTemp;
-            
             html += `
                 <div class="phase-card">
                     <div class="phase-header">
@@ -566,11 +566,8 @@ class WaterSimulatorApp {
     animate() {
         this.animationId = requestAnimationFrame(() => this.animate());
         
-        if (this.isPlaying && this.currentTimeIndex < this.timeSteps.length - 1) {
-            this.currentTimeIndex++;
-            document.getElementById('time-slider').value = this.currentTimeIndex;
-            this.updateVisualization();
-            this.updateTimeDisplay();
+        if (this.controls) {
+            this.controls.update();
         }
         
         if (this.mesh) {
@@ -578,27 +575,6 @@ class WaterSimulatorApp {
         }
         
         this.renderer.render(this.scene, this.camera);
-    }
-    
-    togglePlay() {
-        this.isPlaying = !this.isPlaying;
-        document.getElementById('play-btn').textContent = this.isPlaying ? '⏸' : '▶';
-    }
-    
-    stepBack() {
-        this.currentTimeIndex = Math.max(0, this.currentTimeIndex - 1);
-        document.getElementById('time-slider').value = this.currentTimeIndex;
-        this.updateVisualization();
-        this.updateTimeDisplay();
-    }
-    
-    stepForward() {
-        if (this.timeSteps.length > 0) {
-            this.currentTimeIndex = Math.min(this.timeSteps.length - 1, this.currentTimeIndex + 1);
-            document.getElementById('time-slider').value = this.currentTimeIndex;
-            this.updateVisualization();
-            this.updateTimeDisplay();
-        }
     }
     
     updateTimeDisplay() {

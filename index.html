@@ -11,16 +11,17 @@
             --secondary: #00A699;
             --secondary-hover: #00BBAD;
             --accent: #FC642D;
-            --bg-dark: #1A1A1A;
-            --bg-card: #242424;
-            --bg-input: #2D2D2D;
-            --text-primary: #FFFFFF;
-            --text-secondary: #B0B0B0;
-            --text-muted: #6B6B6B;
-            --border: #3D3D3D;
-            --success: #00A699;
-            --warning: #FC642D;
-            --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            --bg-dark: #FFFFFF;
+            --bg-card: #F8F9FA;
+            --bg-input: #E9ECEF;
+            --text-primary: #2D3436;
+            --text-secondary: #636E72;
+            --text-muted: #95A5A6;
+            --border: #DEE2E6;
+            --success: #00B894;
+            --warning: #FD79A8;
+            --shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.12);
             --radius: 12px;
             --radius-lg: 16px;
             --radius-sm: 8px;
@@ -182,8 +183,8 @@
         .btn-secondary:hover { background: var(--border); }
         
         .target-temp-display {
-            background: linear-gradient(135deg, rgba(0, 166, 153, 0.15), rgba(0, 166, 153, 0.05));
-            border: 1px solid rgba(0, 166, 153, 0.3);
+            background: linear-gradient(135deg, rgba(0, 184, 148, 0.1), rgba(0, 184, 148, 0.05));
+            border: 1px solid rgba(0, 184, 148, 0.3);
             border-radius: var(--radius);
             padding: 16px;
             text-align: center;
@@ -216,7 +217,7 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(36, 36, 36, 0.95);
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             padding: 14px 24px;
             border-radius: var(--radius-lg);
@@ -224,7 +225,7 @@
             display: flex;
             align-items: center;
             gap: 16px;
-            box-shadow: var(--shadow);
+            box-shadow: var(--shadow-lg);
         }
         
         .time-display {
@@ -237,31 +238,13 @@
             letter-spacing: 1px;
         }
         
-        .time-slider { flex: 1; min-width: 180px; }
-        
-        .control-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: none;
-            background: var(--bg-input);
-            color: var(--text-primary);
-            cursor: pointer;
-            font-size: 18px;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .control-btn:hover { background: var(--border); }
-        .control-btn.play { background: var(--primary); color: white; }
-        .control-btn.play:hover { background: var(--primary-hover); }
+        .time-slider { flex: 1; min-width: 250px; }
         
         .probe-info {
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(36, 36, 36, 0.95);
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             padding: 16px;
             border-radius: var(--radius);
@@ -269,7 +252,7 @@
             font-size: 13px;
             color: var(--text-secondary);
             display: none;
-            box-shadow: var(--shadow);
+            box-shadow: var(--shadow-lg);
             min-width: 200px;
         }
         .probe-info.active { display: block; }
@@ -300,7 +283,7 @@
         .chart-container canvas { width: 100% !important; height: 220px !important; }
         
         .advice-card {
-            background: linear-gradient(135deg, rgba(0, 166, 153, 0.1), rgba(255, 90, 95, 0.05));
+            background: linear-gradient(135deg, rgba(0, 166, 153, 0.08), rgba(255, 90, 95, 0.05));
             border-radius: var(--radius);
             padding: 18px;
             border: 1px solid rgba(0, 166, 153, 0.2);
@@ -357,26 +340,26 @@
         .physics-params .param-label { font-size: 12px; color: var(--text-muted); }
         .physics-params .param-val { font-size: 12px; color: var(--text-secondary); font-family: 'SF Mono', monospace; font-weight: 500; }
 
-        .mobile-toggle {
-            display: none;
-            position: fixed;
-            bottom: 20px;
+        .instructions {
+            position: absolute;
+            top: 20px;
             right: 20px;
-            z-index: 200;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 56px;
-            height: 56px;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 4px 20px rgba(255, 90, 95, 0.4);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-muted);
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        
+
         @media (max-width: 1024px) {
             .left-panel { width: 320px; }
             .right-panel { width: 340px; }
+            .time-slider { min-width: 180px; }
         }
         
         @media (max-width: 768px) {
@@ -390,6 +373,7 @@
             .liquid-grid { grid-template-columns: repeat(4, 1fr); }
             .liquid-option .liquid-name { font-size: 11px; }
             .liquid-option .liquid-icon { font-size: 24px; }
+            .instructions { display: none; }
         }
         
         @media (max-width: 480px) {
@@ -400,7 +384,6 @@
             .btn { padding: 12px; font-size: 14px; }
             .canvas-controls { bottom: 10px; left: 10px; right: 10px; transform: none; }
             .time-display { font-size: 18px; }
-            .control-btn { width: 36px; height: 36px; }
             .probe-info { top: 10px; left: 10px; right: 10px; min-width: auto; }
             .chart-container canvas { height: 180px !important; }
         }
@@ -519,10 +502,11 @@
         <div class="center-panel">
             <div id="canvas-container"></div>
             
+            <div class="instructions" id="instructions">
+                <span>🖱️</span> 拖拽旋转模型 | 滚轮缩放
+            </div>
+
             <div class="canvas-controls">
-                <button class="control-btn" id="step-back-btn">⏮</button>
-                <button class="control-btn play" id="play-btn">▶</button>
-                <button class="control-btn" id="step-forward-btn">⏭</button>
                 <div class="time-display" id="time-display">00:00</div>
                 <input type="range" class="time-slider" id="time-slider" min="0" max="100" value="0">
             </div>
@@ -581,6 +565,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
     <script src="physics-engine.js"></script>
     <script src="app.js"></script>
