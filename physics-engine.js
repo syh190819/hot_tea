@@ -19,10 +19,19 @@ class HeatConductionEngine {
     }
     
     initGrid() {
-        const { diameter, height, wallThickness } = this.params;
+        const { diameter, height, wallThickness, shape } = this.params;
         
-        this.rMax = diameter / 2 - wallThickness;
         this.hMax = height - wallThickness * 2;
+        
+        if (shape === 'cone') {
+            this.rMaxBottom = diameter / 2 - wallThickness;
+            this.rMaxTop = diameter / 4 - wallThickness;
+            this.rMax = this.rMaxBottom;
+        } else if (shape === 'cube') {
+            this.rMax = (diameter / 2 - wallThickness) * 1.414;
+        } else {
+            this.rMax = diameter / 2 - wallThickness;
+        }
         
         this.nr = 20;
         this.nh = 24;
@@ -45,10 +54,36 @@ class HeatConductionEngine {
         return this.grid.map(row => [...row]);
     }
     
+    getLocalRMax(h) {
+        const shape = this.params.shape;
+        if (shape === 'cone') {
+            const hRatio = h / this.hMax;
+            return this.rMaxBottom + (this.rMaxTop - this.rMaxBottom) * hRatio;
+        }
+        return this.rMax;
+    }
+    
+    getEffectiveRRatio(r, h) {
+        const localRMax = this.getLocalRMax(h);
+        let rRatio = r / localRMax;
+        
+        if (this.params.shape === 'cube') {
+            const squareHalfSize = (this.params.diameter / 2 - this.params.wallThickness);
+            const cornerR = squareHalfSize * 1.414;
+            const edgeR = squareHalfSize;
+            if (r > edgeR) {
+                const cornerFactor = 1 + 0.5 * ((r - edgeR) / (cornerR - edgeR));
+                rRatio = Math.min(1, rRatio * cornerFactor);
+            }
+        }
+        
+        return Math.min(1, Math.max(0, rRatio));
+    }
+    
     solve() {
         this.initGrid();
         
-        const { ambientTemp, initialTemp, wallMaterial } = this.params;
+        const { ambientTemp, initialTemp, wallMaterial, shape } = this.params;
         
         this.currentMaterial = this.wallMaterials[wallMaterial] || this.wallMaterials.ceramic;
         const insulationFactor = this.currentMaterial.insulation;
@@ -58,6 +93,7 @@ class HeatConductionEngine {
         const surfaceCoolingFactor = 6.0 * (1 - insulationFactor * 0.3);
         
         console.log('=== 物理引擎开始计算 ===');
+        console.log(`杯子形状: ${shape === 'cylinder' ? '圆柱形' : shape === 'cone' ? '锥形' : '方杯'}`);
         console.log(`杯壁材料: ${this.currentMaterial.name} (导热系数: ${this.currentMaterial.k} W/m·°C)`);
         console.log(`保温系数: ${insulationFactor}`);
         console.log(`初始温度: ${initialTemp}°C, 环境温度: ${ambientTemp}°C`);
@@ -68,13 +104,15 @@ class HeatConductionEngine {
             
             for (let i = 0; i < this.nr; i++) {
                 for (let j = 0; j < this.nh; j++) {
-                    const rRatio = i / (this.nr - 1);
+                    const r = i * this.dr;
+                    const h = j * this.dh;
+                    const rRatio = this.getEffectiveRRatio(r, h);
                     const hRatio = j / (this.nh - 1);
                     
                     let coolingMultiplier = 1.0;
                     
-                    if (rRatio > 0.6) {
-                        const wallLoss = (rRatio - 0.6) * 2.5 * edgeCoolingFactor;
+                    if (rRatio > 0.5) {
+                        const wallLoss = (rRatio - 0.5) * 3 * edgeCoolingFactor;
                         coolingMultiplier += wallLoss * insulationFactor;
                     }
                     
@@ -126,14 +164,14 @@ class HeatConductionEngine {
     
     getTemperatureAtPosition(x, y, z, timeIndex) {
         if (!this.timeSteps || !this.timeSteps[timeIndex]) {
-            console.warn(`时间索引 ${timeIndex} 无效，总步数 ${this.timeSteps?.length || 0}`);
             return this.params.initialTemp;
         }
         
         const grid = this.timeSteps[timeIndex];
         const r = Math.sqrt(x * x + z * z);
+        const localRMax = this.getLocalRMax(y);
         
-        if (r > this.rMax) {
+        if (r > localRMax) {
             return this.params.ambientTemp;
         }
         
@@ -182,7 +220,7 @@ class HeatConductionEngine {
                 if (t >= 0 && t < this.timeSteps.length) {
                     const centerTemp = this.getTemperatureAtPosition(0, this.hMax / 2, 0, t);
                     const edgeTemp = this.getTemperatureAtPosition(
-                        Math.max(1, this.rMax * 0.8), this.hMax / 2, 0, t
+                        Math.max(1, this.getLocalRMax(this.hMax / 2) * 0.8), this.hMax / 2, 0, t
                     );
                     const surfaceTemp = this.getTemperatureAtPosition(
                         0, Math.max(1, this.hMax * 0.9), 0, t
