@@ -19,6 +19,7 @@ class WaterSimulatorApp {
         
         this.params = {
             shape: 'cylinder',
+            wallMaterial: 'ceramic',
             diameter: 80,
             height: 120,
             wallThickness: 3,
@@ -29,7 +30,16 @@ class WaterSimulatorApp {
             liquidType: 'tea'
         };
         
+        this.wallMaterials = {
+            ceramic: { name: '陶瓷', k: 1.5, insulation: 0.6, description: '中等散热，保温性好' },
+            glass: { name: '玻璃', k: 1.0, insulation: 0.7, description: '散热较慢' },
+            stainless_steel: { name: '不锈钢', k: 17.0, insulation: 0.15, description: '散热快，热传导迅速' },
+            plastic: { name: '塑料', k: 0.3, insulation: 0.85, description: '保温性好，热量散失慢' },
+            silicone: { name: '硅胶', k: 0.25, insulation: 0.9, description: '最佳保温效果' }
+        };
+        
         this.useWebGL = true;
+        this.currentMaterial = this.wallMaterials.ceramic;
         
         this.init();
     }
@@ -91,6 +101,18 @@ class WaterSimulatorApp {
                     this.updateVisualization();
                     this.updateTimeDisplay();
                 }
+            }
+        });
+        
+        document.getElementById('material-select').addEventListener('change', (e) => {
+            this.params.wallMaterial = e.target.value;
+            const material = this.wallMaterials[e.target.value];
+            document.getElementById('material-value').textContent = material.name;
+            document.getElementById('wall-k-value').textContent = material.k;
+            document.querySelector('.material-desc').textContent = material.description;
+            
+            if (this.physicsEngine) {
+                this.startSimulation();
             }
         });
         
@@ -162,6 +184,11 @@ class WaterSimulatorApp {
         document.getElementById('k-value').textContent = p.k;
         document.getElementById('rho-value').textContent = p.rho;
         document.getElementById('alpha-value').textContent = p.alpha.toExponential(2);
+        
+        const material = this.wallMaterials[this.params.wallMaterial];
+        if (material) {
+            document.getElementById('wall-k-value').textContent = material.k;
+        }
     }
     
     initProbeChart() {
@@ -300,10 +327,12 @@ class WaterSimulatorApp {
         setTimeout(() => {
             try {
                 this.physicsEngine = new HeatConductionEngine(this.params);
+                this.currentMaterial = this.physicsEngine.currentMaterial;
                 this.timeSteps = this.physicsEngine.solve();
                 
                 console.log('计算完成，时间步数:', this.timeSteps.length);
                 console.log('物理引擎实例:', this.physicsEngine);
+                console.log('杯壁材料:', this.currentMaterial);
                 
                 this.initVisualization();
                 
@@ -834,8 +863,9 @@ class WaterSimulatorApp {
     generateAdvice() {
         if (!this.physicsEngine) return;
         
-        const strategy = this.physicsEngine.generateDrinkingStrategy();
+        const strategy = this.physicsEngine.generateDrinkingStrategy(this.currentMaterial);
         const adviceCard = document.getElementById('advice-card');
+        const materialName = this.currentMaterial.name;
         
         let html = `<h4>🧠 AI 饮水策略分析</h4>`;
         

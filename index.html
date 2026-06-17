@@ -132,6 +132,19 @@
         }
         .param-row input[type="number"]:focus, .param-row select:focus { border-color: var(--primary); }
         
+        .material-info {
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            margin-top: -8px;
+            margin-bottom: 16px;
+            border-left: 3px solid var(--secondary);
+        }
+        .material-info .material-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
         .liquid-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -417,6 +430,19 @@
                     </select>
                 </div>
                 <div class="param-row">
+                    <label>杯壁材料 <span class="param-value" id="material-value">陶瓷</span></label>
+                    <select id="material-select">
+                        <option value="ceramic">陶瓷</option>
+                        <option value="glass">玻璃</option>
+                        <option value="stainless_steel">不锈钢</option>
+                        <option value="plastic">塑料</option>
+                        <option value="silicone">硅胶</option>
+                    </select>
+                </div>
+                <div class="material-info" id="material-info">
+                    <span class="material-desc">中等散热，保温性好</span>
+                </div>
+                <div class="param-row">
                     <label>直径 (mm) <span class="param-value" id="diameter-value">80</span></label>
                     <input type="range" id="diameter-slider" min="50" max="150" value="80" step="5">
                     <input type="number" id="diameter-input" min="50" max="150" value="80">
@@ -547,20 +573,24 @@
                 <h3>物理参数</h3>
                 <div class="physics-params">
                     <div class="param-item">
-                        <span class="param-label">比热容</span>
+                        <span class="param-label">液体导热系数</span>
+                        <span class="param-val" id="k-value">0.58</span> W/m·°C
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">液体比热容</span>
                         <span class="param-val" id="cp-value">4186</span> J/kg·°C
                     </div>
                     <div class="param-item">
-                        <span class="param-label">导热系数</span>
-                        <span class="param-val" id="k-value">0.6</span> W/m·°C
+                        <span class="param-label">杯壁材料</span>
+                        <span class="param-val" id="wall-k-value">1.5</span> W/m·°C
                     </div>
                     <div class="param-item">
-                        <span class="param-label">密度</span>
+                        <span class="param-label">液体密度</span>
                         <span class="param-val" id="rho-value">998</span> kg/m³
                     </div>
                     <div class="param-item">
                         <span class="param-label">热扩散率</span>
-                        <span class="param-val" id="alpha-value">1.47e-7</span> m²/s
+                        <span class="param-val" id="alpha-value">1.41e-7</span> m²/s
                     </div>
                 </div>
             </div>

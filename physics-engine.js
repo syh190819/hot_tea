@@ -6,6 +6,16 @@ class HeatConductionEngine {
         this.maxTime = 600;
         this.numTimeSteps = 100;
         this.cachedData = {};
+        
+        this.wallMaterials = {
+            ceramic: { k: 1.5, insulation: 0.6, name: '陶瓷' },
+            glass: { k: 1.0, insulation: 0.7, name: '玻璃' },
+            stainless_steel: { k: 17.0, insulation: 0.15, name: '不锈钢' },
+            plastic: { k: 0.3, insulation: 0.85, name: '塑料' },
+            silicone: { k: 0.25, insulation: 0.9, name: '硅胶' }
+        };
+        
+        this.currentMaterial = this.wallMaterials[params.wallMaterial] || this.wallMaterials.ceramic;
     }
     
     initGrid() {
@@ -38,13 +48,18 @@ class HeatConductionEngine {
     solve() {
         this.initGrid();
         
-        const { ambientTemp, initialTemp } = this.params;
+        const { ambientTemp, initialTemp, wallMaterial } = this.params;
+        
+        this.currentMaterial = this.wallMaterials[wallMaterial] || this.wallMaterials.ceramic;
+        const insulationFactor = this.currentMaterial.insulation;
         
         const baseCoolingRate = 0.003;
-        const edgeCoolingFactor = 5.0;
-        const surfaceCoolingFactor = 6.0;
+        const edgeCoolingFactor = 5.0 * (1 - insulationFactor * 0.5);
+        const surfaceCoolingFactor = 6.0 * (1 - insulationFactor * 0.3);
         
         console.log('=== 物理引擎开始计算 ===');
+        console.log(`杯壁材料: ${this.currentMaterial.name} (导热系数: ${this.currentMaterial.k} W/m·°C)`);
+        console.log(`保温系数: ${insulationFactor}`);
         console.log(`初始温度: ${initialTemp}°C, 环境温度: ${ambientTemp}°C`);
         console.log(`网格: ${this.nr}×${this.nh}`);
         
@@ -59,15 +74,17 @@ class HeatConductionEngine {
                     let coolingMultiplier = 1.0;
                     
                     if (rRatio > 0.6) {
-                        coolingMultiplier += (rRatio - 0.6) * 2.5 * edgeCoolingFactor;
+                        const wallLoss = (rRatio - 0.6) * 2.5 * edgeCoolingFactor;
+                        coolingMultiplier += wallLoss * insulationFactor;
                     }
                     
                     if (hRatio > 0.75) {
-                        coolingMultiplier += (hRatio - 0.75) * 4 * surfaceCoolingFactor;
+                        const surfaceLoss = (hRatio - 0.75) * 4 * surfaceCoolingFactor;
+                        coolingMultiplier += surfaceLoss * insulationFactor;
                     }
                     
                     if (rRatio < 0.4 && hRatio < 0.4) {
-                        coolingMultiplier *= 0.5;
+                        coolingMultiplier *= 0.5 * (1 - insulationFactor * 0.3);
                     }
                     
                     const tempDiff = this.grid[i][j] - ambientTemp;
@@ -81,13 +98,14 @@ class HeatConductionEngine {
                 }
             }
             
+            const diffusionRate = 0.15 + insulationFactor * 0.1;
             for (let i = 1; i < this.nr - 1; i++) {
                 for (let j = 1; j < this.nh - 1; j++) {
                     const avgNeighbor = (
                         newGrid[i + 1][j] + newGrid[i - 1][j] +
                         newGrid[i][j + 1] + newGrid[i][j - 1]
                     ) / 4;
-                    newGrid[i][j] = newGrid[i][j] * 0.8 + avgNeighbor * 0.2;
+                    newGrid[i][j] = newGrid[i][j] * (1 - diffusionRate) + avgNeighbor * diffusionRate;
                 }
             }
             
@@ -146,14 +164,16 @@ class HeatConductionEngine {
         return data;
     }
     
-    generateDrinkingStrategy() {
+    generateDrinkingStrategy(material = null) {
         const { targetMinTemp, targetMaxTemp } = this.params;
         const strategy = {
             phases: [],
-            recommendations: []
+            recommendations: [],
+            material: material || this.currentMaterial
         };
         
         const timeStepSize = this.maxTime / this.numTimeSteps;
+        const insulationFactor = strategy.material.insulation || 0.5;
         
         const analyzePhase = (timeStart, timeEnd, description) => {
             const temps = [];
