@@ -368,6 +368,30 @@
             align-items: center;
             gap: 8px;
         }
+        
+        .probe-input-row {
+            display: flex;
+            gap: 6px;
+        }
+        .probe-input-row input[type="number"] {
+            padding: 8px 10px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+            width: 100%;
+        }
+        .probe-input-row input[type="number"]:focus {
+            border-color: var(--primary);
+        }
+        .probe-input-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
 
         @media (max-width: 1024px) {
             .left-panel { width: 320px; }
@@ -550,11 +574,14 @@
                 <div class="probe-input-group" style="margin-top: 12px;">
                     <div class="probe-input-label">直接输入坐标选点：</div>
                     <div class="probe-input-row">
-                        <input type="number" id="input-probe-x" placeholder="X" step="1" style="flex: 1;">
-                        <input type="number" id="input-probe-y" placeholder="Y" step="1" style="flex: 1;">
-                        <input type="number" id="input-probe-z" placeholder="Z" step="1" style="flex: 1;">
+                        <input type="number" id="input-probe-x" placeholder="X" step="0.1" style="flex: 1;">
+                        <input type="number" id="input-probe-y" placeholder="Y" step="0.1" style="flex: 1;">
+                        <input type="number" id="input-probe-z" placeholder="Z" step="0.1" style="flex: 1;">
                     </div>
-                    <button class="btn btn-secondary" id="add-probe-btn" style="margin-top: 8px; width: 100%;">添加至图表</button>
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button class="btn btn-secondary" id="set-probe-btn" style="flex: 1;">定位选点</button>
+                        <button class="btn btn-primary" id="add-probe-btn" style="flex: 1;">添加至图表</button>
+                    </div>
                 </div>
             </div>
         </div>

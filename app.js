@@ -40,6 +40,7 @@ class WaterSimulatorApp {
         
         this.useWebGL = true;
         this.currentMaterial = this.wallMaterials.ceramic;
+        this.isPlaying = false;
         
         this.init();
     }
@@ -136,6 +137,46 @@ class WaterSimulatorApp {
         
         document.getElementById('add-probe-btn').addEventListener('click', () => this.addProbeToChart());
         document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
+        document.getElementById('set-probe-btn').addEventListener('click', () => this.setProbeFromInput());
+    }
+    
+    setProbeFromInput() {
+        const x = parseFloat(document.getElementById('input-probe-x').value);
+        const y = parseFloat(document.getElementById('input-probe-y').value);
+        const z = parseFloat(document.getElementById('input-probe-z').value);
+        
+        if (isNaN(x) || isNaN(y) || isNaN(z)) {
+            console.warn('请输入有效的坐标值');
+            return;
+        }
+        
+        const { height, wallThickness } = this.params;
+        const liquidHeight = height - wallThickness * 2 - 2;
+        const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
+        const probeGlobalY = y - liquidBaseY + liquidHeight / 2;
+        
+        document.getElementById('probe-x').textContent = x.toFixed(1);
+        document.getElementById('probe-y').textContent = y.toFixed(1);
+        document.getElementById('probe-z').textContent = z.toFixed(1);
+        
+        const temp = this.physicsEngine.getTemperatureAtPosition(x, probeGlobalY, z, this.currentTimeIndex);
+        document.getElementById('probe-temp').textContent = temp.toFixed(1);
+        document.getElementById('probe-info').classList.add('active');
+        
+        this.currentProbePosition = { x, y, z, probeGlobalY };
+        
+        if (this.useWebGL && this.mesh && this.scene) {
+            if (this.probePoint) {
+                this.scene.remove(this.probePoint);
+            }
+            const probeGeometry = new THREE.SphereGeometry(2.5, 16, 16);
+            const probeMaterial = new THREE.MeshBasicMaterial({ color: 0xFF5A5F });
+            this.probePoint = new THREE.Mesh(probeGeometry, probeMaterial);
+            this.probePoint.position.set(x, y, z);
+            this.scene.add(this.probePoint);
+        }
+        
+        this.updateProbeChart(probeGlobalY);
     }
     
     togglePlay() {
@@ -574,7 +615,7 @@ class WaterSimulatorApp {
         const h = relY / liquidHeight * hMax;
         
         if (r <= rMax && h >= 0 && h <= hMax) {
-            this.currentProbePosition = { x: r, y: h, z: 0 };
+            this.currentProbePosition = { x: r, y: h, z: 0, probeGlobalY: h };
             
             document.getElementById('probe-x').textContent = r.toFixed(1);
             document.getElementById('probe-y').textContent = h.toFixed(1);
@@ -583,6 +624,8 @@ class WaterSimulatorApp {
             const temp = this.physicsEngine.getTemperatureAtPosition(r, h, 0, this.currentTimeIndex);
             document.getElementById('probe-temp').textContent = temp.toFixed(1);
             document.getElementById('probe-info').classList.add('active');
+            
+            this.updateProbeChart(h);
             
             this.draw2DHeatmap();
         }
@@ -708,6 +751,7 @@ class WaterSimulatorApp {
         const colors = this.mesh.geometry.attributes.color;
         const { height, wallThickness } = this.params;
         const liquidHeight = height - wallThickness * 2 - 2;
+        const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
         const hMax = this.physicsEngine.hMax;
         
         for (let i = 0; i < positions.count; i++) {
@@ -727,7 +771,7 @@ class WaterSimulatorApp {
         
         if (this.probePoint) {
             const localY = this.probePoint.position.y;
-            const globalY = localY + liquidHeight / 2;
+            const globalY = localY - liquidBaseY + liquidHeight / 2;
             const probeTemp = this.physicsEngine.getTemperatureAtPosition(
                 this.probePoint.position.x,
                 globalY,
@@ -775,11 +819,12 @@ class WaterSimulatorApp {
                 
                 const { height, wallThickness } = this.params;
                 const liquidHeight = height - wallThickness * 2 - 2;
-                const probeY = point.y + liquidHeight / 2;
+                const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
+                const probeGlobalY = point.y - liquidBaseY + liquidHeight / 2;
                 
                 const temp = this.physicsEngine.getTemperatureAtPosition(
                     point.x,
-                    probeY,
+                    probeGlobalY,
                     point.z,
                     this.currentTimeIndex
                 );
@@ -787,7 +832,9 @@ class WaterSimulatorApp {
                 document.getElementById('probe-temp').textContent = temp.toFixed(1);
                 document.getElementById('probe-info').classList.add('active');
                 
-                this.updateProbeChart(probeY);
+                this.currentProbePosition.probeGlobalY = probeGlobalY;
+                
+                this.updateProbeChart(probeGlobalY);
             }
         };
         
@@ -813,22 +860,15 @@ class WaterSimulatorApp {
             return;
         }
         
-        let probeY = this.currentProbePosition.y;
-        let probeX = this.currentProbePosition.x;
-        let probeZ = this.currentProbePosition.z || 0;
-        
-        if (this.useWebGL) {
-            const { height, wallThickness } = this.params;
-            const liquidHeight = height - wallThickness * 2 - 2;
-            const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
-            probeY = this.currentProbePosition.y + liquidBaseY;
-        }
+        const probeX = this.currentProbePosition.x;
+        const probeZ = this.currentProbePosition.z || 0;
+        const probeY = this.currentProbePosition.probeGlobalY || this.currentProbePosition.y;
         
         console.log('获取探针数据:', { x: probeX, y: probeY, z: probeZ });
         
         const data = this.physicsEngine.getProbeData(probeX, probeY, probeZ);
         
-        console.log('探针数据:', data);
+        console.log('探针数据条数:', data.length);
         
         if (data.length === 0) {
             console.warn('探针数据为空');
@@ -907,7 +947,7 @@ class WaterSimulatorApp {
         }
         
         if (this.renderer && this.scene && this.camera) {
-            if (this.physicsEngine && this.mesh) {
+            if (this.physicsEngine && this.mesh && !this.isPlaying) {
                 this.update3DVisualization();
             }
             this.renderer.render(this.scene, this.camera);
