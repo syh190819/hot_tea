@@ -507,6 +507,7 @@
             </div>
 
             <div class="canvas-controls">
+                <button class="btn btn-secondary" id="play-btn" style="width: 40px; padding: 8px;">▶</button>
                 <div class="time-display" id="time-display">00:00</div>
                 <input type="range" class="time-slider" id="time-slider" min="0" max="100" value="0">
             </div>
@@ -517,7 +518,9 @@
                     <span class="probe-temp" id="probe-temp">0</span>°C
                 </div>
                 <div class="probe-coords">位置: (<span id="probe-x">0</span>, <span id="probe-y">0</span>, <span id="probe-z">0</span>)</div>
-                <button class="btn btn-secondary" id="add-probe-btn">添加到图表</button>
+                <div class="probe-chart-container" id="probe-chart-container" style="margin-top: 12px;">
+                    <canvas id="probe-chart" width="200" height="80"></canvas>
+                </div>
             </div>
         </div>
 

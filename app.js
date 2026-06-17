@@ -14,6 +14,7 @@ class WaterSimulatorApp {
         this.animationId = null;
         
         this.tempChart = null;
+        this.probeChart = null;
         this.probes = [];
         
         this.params = {
@@ -36,6 +37,7 @@ class WaterSimulatorApp {
     init() {
         this.setupEventListeners();
         this.initChart();
+        this.initProbeChart();
         this.updatePhysicsParamsDisplay();
     }
     
@@ -111,6 +113,35 @@ class WaterSimulatorApp {
         });
         
         document.getElementById('add-probe-btn').addEventListener('click', () => this.addProbeToChart());
+        document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
+    }
+    
+    togglePlay() {
+        if (!this.timeSteps || this.timeSteps.length === 0) return;
+        
+        this.isPlaying = !this.isPlaying;
+        const playBtn = document.getElementById('play-btn');
+        playBtn.textContent = this.isPlaying ? '⏸' : '▶';
+        
+        if (this.isPlaying) {
+            this.playAnimation();
+        }
+    }
+    
+    playAnimation() {
+        if (!this.isPlaying) return;
+        
+        if (this.currentTimeIndex < this.timeSteps.length - 1) {
+            this.currentTimeIndex++;
+            document.getElementById('time-slider').value = this.currentTimeIndex;
+            this.updateVisualization();
+            this.updateTimeDisplay();
+            
+            setTimeout(() => this.playAnimation(), 100);
+        } else {
+            this.isPlaying = false;
+            document.getElementById('play-btn').textContent = '▶';
+        }
     }
     
     updateTargetRangeDisplay() {
@@ -131,6 +162,60 @@ class WaterSimulatorApp {
         document.getElementById('k-value').textContent = p.k;
         document.getElementById('rho-value').textContent = p.rho;
         document.getElementById('alpha-value').textContent = p.alpha.toExponential(2);
+    }
+    
+    initProbeChart() {
+        const ctx = document.getElementById('probe-chart').getContext('2d');
+        this.probeChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: '温度',
+                    data: [],
+                    borderColor: '#FF5A5F',
+                    backgroundColor: 'rgba(255, 90, 95, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(248, 249, 250, 0.95)',
+                        titleColor: '#2D3436',
+                        bodyColor: '#636E72',
+                        borderColor: '#DEE2E6',
+                        borderWidth: 1,
+                        padding: 8,
+                        displayColors: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { display: false }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { 
+                            display: true, 
+                            color: '#95A5A6',
+                            font: { size: 10 },
+                            maxTicksLimit: 3
+                        },
+                        min: 0,
+                        max: 100
+                    }
+                }
+            }
+        });
     }
     
     initChart() {
@@ -495,10 +580,12 @@ class WaterSimulatorApp {
             transparent: true,
             opacity: 0.35,
             side: THREE.DoubleSide,
-            depthWrite: false
+            depthWrite: false,
+            depthTest: true
         });
         
         this.cupMesh = new THREE.Mesh(geometry, material);
+        this.cupMesh.renderOrder = 1;
         this.scene.add(this.cupMesh);
     }
     
@@ -544,6 +631,7 @@ class WaterSimulatorApp {
         
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.y = (height - liquidHeight) / 2 - wallThickness;
+        this.mesh.renderOrder = 2;
         this.scene.add(this.mesh);
     }
     
@@ -591,14 +679,16 @@ class WaterSimulatorApp {
         const colors = this.mesh.geometry.attributes.color;
         const { height, wallThickness } = this.params;
         const liquidHeight = height - wallThickness * 2 - 2;
-        const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
+        const hMax = this.physicsEngine.hMax;
         
         for (let i = 0; i < positions.count; i++) {
             const x = positions.getX(i);
-            const y = positions.getY(i) + liquidBaseY;
+            const localY = positions.getY(i);
             const z = positions.getZ(i);
             
-            const temp = this.physicsEngine.getTemperatureAtPosition(x, y, z, this.currentTimeIndex);
+            const globalY = localY + liquidHeight / 2;
+            
+            const temp = this.physicsEngine.getTemperatureAtPosition(x, globalY, z, this.currentTimeIndex);
             const color = this.tempToColor(temp);
             
             colors.setXYZ(i, color.r, color.g, color.b);
@@ -607,10 +697,11 @@ class WaterSimulatorApp {
         colors.needsUpdate = true;
         
         if (this.probePoint) {
-            const probeY = this.probePoint.position.y + liquidBaseY;
+            const localY = this.probePoint.position.y;
+            const globalY = localY + liquidHeight / 2;
             const probeTemp = this.physicsEngine.getTemperatureAtPosition(
                 this.probePoint.position.x,
-                probeY,
+                globalY,
                 this.probePoint.position.z,
                 this.currentTimeIndex
             );
@@ -655,8 +746,7 @@ class WaterSimulatorApp {
                 
                 const { height, wallThickness } = this.params;
                 const liquidHeight = height - wallThickness * 2 - 2;
-                const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
-                const probeY = point.y + liquidBaseY;
+                const probeY = point.y + liquidHeight / 2;
                 
                 const temp = this.physicsEngine.getTemperatureAtPosition(
                     point.x,
@@ -667,10 +757,25 @@ class WaterSimulatorApp {
                 
                 document.getElementById('probe-temp').textContent = temp.toFixed(1);
                 document.getElementById('probe-info').classList.add('active');
+                
+                this.updateProbeChart(probeY);
             }
         };
         
         this.renderer.domElement.addEventListener('click', onClick);
+    }
+    
+    updateProbeChart(probeY) {
+        if (!this.probeChart || !this.physicsEngine || !this.currentProbePosition) return;
+        
+        const probeX = this.currentProbePosition.x;
+        const probeZ = this.currentProbePosition.z || 0;
+        
+        const data = this.physicsEngine.getProbeData(probeX, probeY, probeZ);
+        
+        this.probeChart.data.labels = data.map(d => Math.round(d.time));
+        this.probeChart.data.datasets[0].data = data.map(d => d.temp);
+        this.probeChart.update();
     }
     
     addProbeToChart() {
@@ -761,25 +866,7 @@ class WaterSimulatorApp {
         
         html += `</div>`;
         
-        html += `
-            <div class="strategy">
-                <strong>💡 专家建议：</strong>${this.generateDrinkingTips(strategy)}
-            </div>
-        `;
-        
         adviceCard.innerHTML = html;
-    }
-    
-    generateDrinkingTips(strategy) {
-        const tips = [
-            '前5分钟建议从杯口边缘饮用，因为表层散热最快',
-            '5-15分钟可尝试从杯壁附近小口啜饮',
-            '15-30分钟后杯中心温度逐渐均匀，是畅饮的最佳时机',
-            '记得适时搅拌，促进热量均匀分布',
-            '使用隔热杯套可以延长最佳饮用时间窗口'
-        ];
-        
-        return tips.join('</br>');
     }
     
     animate() {
