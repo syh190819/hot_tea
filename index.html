@@ -269,9 +269,26 @@
             min-width: 200px;
         }
         .probe-info.active { display: block; }
-        .probe-info .probe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .probe-info .probe-temp { font-size: 24px; color: var(--accent); font-weight: 700; }
-        .probe-info .probe-coords { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+        .probe-info .probe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .probe-info .probe-temp { font-size: 20px; color: var(--accent); font-weight: 700; }
+        .probe-info .probe-coords { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+        .probe-close-btn {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 24px;
+            text-align: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .probe-close-btn:hover { background: var(--bg-input); color: var(--text-primary); }
         
         .right-panel {
             width: 380px;
@@ -566,10 +583,11 @@
                 <div class="probe-header">
                     <span>探针读数</span>
                     <span class="probe-temp" id="probe-temp">0</span>°C
+                    <button class="probe-close-btn" id="probe-close-btn">✕</button>
                 </div>
                 <div class="probe-coords">位置: (<span id="probe-x">0</span>, <span id="probe-y">0</span>, <span id="probe-z">0</span>)</div>
-                <div class="probe-chart-container" id="probe-chart-container" style="margin-top: 12px; width: 100%;">
-                    <canvas id="probe-chart" style="width: 100%; height: 120px;"></canvas>
+                <div class="probe-chart-container" id="probe-chart-container" style="margin-top: 8px; width: 100%;">
+                    <canvas id="probe-chart" style="width: 100%; height: 90px;"></canvas>
                 </div>
                 <div class="probe-input-group" style="margin-top: 12px;">
                     <div class="probe-input-label">直接输入坐标选点：</div>

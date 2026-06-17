@@ -138,6 +138,11 @@ class WaterSimulatorApp {
         document.getElementById('add-probe-btn').addEventListener('click', () => this.addProbeToChart());
         document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
         document.getElementById('set-probe-btn').addEventListener('click', () => this.setProbeFromInput());
+        document.getElementById('probe-close-btn').addEventListener('click', () => this.closeProbeInfo());
+    }
+    
+    closeProbeInfo() {
+        document.getElementById('probe-info').classList.remove('active');
     }
     
     setProbeFromInput() {
@@ -799,6 +804,7 @@ class WaterSimulatorApp {
             const intersects = raycaster.intersectObject(this.mesh);
             
             if (intersects.length > 0) {
+                // ... existing probe placement code
                 const point = intersects[0].point;
                 
                 if (this.probePoint) {
@@ -835,6 +841,8 @@ class WaterSimulatorApp {
                 this.currentProbePosition.probeGlobalY = probeGlobalY;
                 
                 this.updateProbeChart(probeGlobalY);
+            } else {
+                document.getElementById('probe-info').classList.remove('active');
             }
         };
         
