@@ -81,6 +81,15 @@ class WaterSimulatorApp {
             this.params.shape = e.target.value;
             document.getElementById('shape-value').textContent = 
                 e.target.options[e.target.selectedIndex].text;
+            
+            if (this.physicsEngine) {
+                this.initVisualization();
+                if (this.timeSteps.length > 0) {
+                    document.getElementById('time-slider').max = this.timeSteps.length - 1;
+                    this.updateVisualization();
+                    this.updateTimeDisplay();
+                }
+            }
         });
         
         document.querySelectorAll('.liquid-option').forEach(opt => {
@@ -466,16 +475,27 @@ class WaterSimulatorApp {
     }
     
     createCup() {
-        const { diameter, height, wallThickness } = this.params;
+        const { diameter, height, wallThickness, shape } = this.params;
         const innerRadius = diameter / 2 - wallThickness;
         const outerRadius = diameter / 2;
         
-        const geometry = new THREE.CylinderGeometry(innerRadius, outerRadius, height, 32, 1, true);
+        let geometry;
+        if (shape === 'cone') {
+            const topRadius = diameter / 4;
+            geometry = new THREE.CylinderGeometry(topRadius - wallThickness, outerRadius, height, 32, 1, true);
+        } else if (shape === 'cube') {
+            const size = diameter;
+            geometry = new THREE.BoxGeometry(size, height, size);
+        } else {
+            geometry = new THREE.CylinderGeometry(innerRadius, outerRadius, height, 32, 1, true);
+        }
+        
         const material = new THREE.MeshPhongMaterial({
             color: 0xDEE2E6,
             transparent: true,
-            opacity: 0.5,
-            side: THREE.DoubleSide
+            opacity: 0.35,
+            side: THREE.DoubleSide,
+            depthWrite: false
         });
         
         this.cupMesh = new THREE.Mesh(geometry, material);
@@ -483,14 +503,23 @@ class WaterSimulatorApp {
     }
     
     createLiquid() {
-        const { diameter, height, wallThickness } = this.params;
-        const radius = diameter / 2 - wallThickness - 1;
+        const { diameter, height, wallThickness, shape } = this.params;
         const liquidHeight = height - wallThickness * 2 - 2;
         
-        const segments = 32;
-        const rings = 24;
+        let geometry;
         
-        const geometry = new THREE.CylinderGeometry(radius, radius, liquidHeight, segments, rings);
+        if (shape === 'cone') {
+            const topRadius = (diameter / 4) - wallThickness - 1;
+            const bottomRadius = (diameter / 2) - wallThickness - 1;
+            geometry = new THREE.CylinderGeometry(topRadius, bottomRadius, liquidHeight, 32, 24);
+        } else if (shape === 'cube') {
+            const size = diameter - wallThickness * 2 - 2;
+            geometry = new THREE.BoxGeometry(size, liquidHeight, size, 16, 24, 16);
+        } else {
+            const radius = diameter / 2 - wallThickness - 1;
+            geometry = new THREE.CylinderGeometry(radius, radius, liquidHeight, 32, 24);
+        }
+        
         const positions = geometry.attributes.position;
         
         const colors = new Float32Array(positions.count * 3);
@@ -508,8 +537,9 @@ class WaterSimulatorApp {
         const material = new THREE.MeshPhongMaterial({
             vertexColors: true,
             transparent: true,
-            opacity: 0.95,
-            shininess: 120
+            opacity: 0.9,
+            shininess: 120,
+            side: THREE.DoubleSide
         });
         
         this.mesh = new THREE.Mesh(geometry, material);
