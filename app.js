@@ -139,6 +139,12 @@ class WaterSimulatorApp {
         document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
         document.getElementById('set-probe-btn').addEventListener('click', () => this.setProbeFromInput());
         document.getElementById('probe-close-btn').addEventListener('click', () => this.closeProbeInfo());
+        
+        // 折叠面板切换
+        document.getElementById('advice-toggle').addEventListener('click', () => {
+            const section = document.getElementById('advice-section');
+            section.classList.toggle('collapsed');
+        });
     }
     
     closeProbeInfo() {
@@ -182,6 +188,8 @@ class WaterSimulatorApp {
         }
         
         this.updateProbeChart(probeGlobalY);
+        
+        this.drawCrossSections(x, probeGlobalY, z);
     }
     
     togglePlay() {
@@ -390,6 +398,16 @@ class WaterSimulatorApp {
                     this.updateTimeDisplay();
                 }
                 
+                // 默认显示 (0,0,0) 处的剖面图
+                this.currentProbePosition = { x: 0, y: 0, z: 0, probeGlobalY: 0 };
+                document.getElementById('probe-x').textContent = '0';
+                document.getElementById('probe-y').textContent = '0';
+                document.getElementById('probe-z').textContent = '0';
+                const centerTemp = this.physicsEngine.getTemperatureAtPosition(0, 0, 0, this.currentTimeIndex);
+                document.getElementById('probe-temp').textContent = centerTemp.toFixed(1);
+                document.getElementById('probe-info').classList.add('active');
+                this.drawCrossSections(0, 0, 0);
+                
                 this.generateAdvice();
                 this.updateStatus('计算完成', false);
             } catch (error) {
@@ -444,11 +462,16 @@ class WaterSimulatorApp {
             this.renderer.setPixelRatio(window.devicePixelRatio);
             container.appendChild(this.renderer.domElement);
             
-            this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-            this.controls.enableDamping = true;
-            this.controls.dampingFactor = 0.05;
-            this.controls.minDistance = 100;
-            this.controls.maxDistance = 400;
+            try {
+                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                this.controls.minDistance = 100;
+                this.controls.maxDistance = 400;
+            } catch (e) {
+                console.warn('OrbitControls 未加载，使用静态视角:', e);
+                this.controls = null;
+            }
             
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             this.scene.add(ambientLight);
@@ -505,6 +528,13 @@ class WaterSimulatorApp {
         this.heatmapCanvas.width = container.clientWidth;
         this.heatmapCanvas.height = container.clientHeight;
         this.draw2DHeatmap();
+        // 重新绘制剖面图
+        if (this.currentProbePosition) {
+            const probeX = this.currentProbePosition.x;
+            const probeY = this.currentProbePosition.probeGlobalY || this.currentProbePosition.y;
+            const probeZ = this.currentProbePosition.z || 0;
+            this.drawCrossSections(probeX, probeY, probeZ);
+        }
     }
     
     draw2DHeatmap() {
@@ -597,6 +627,153 @@ class WaterSimulatorApp {
             ctx.font = 'bold 14px sans-serif';
             ctx.fillText(probeTemp.toFixed(1) + '°C', probeScreenX, probeScreenY + 4);
         }
+        
+        // 绘制颜色图例
+        this.drawColorLegend(ctx, width, height);
+    }
+    
+    drawColorLegend(ctx, width, height) {
+        const legendWidth = 24;
+        const legendHeight = Math.min(height * 0.55, 200);
+        const legendX = width - legendWidth - 16;
+        const legendY = (height - legendHeight) / 2;
+        
+        // 背景
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.beginPath();
+        ctx.roundRect(legendX - 4, legendY - 20, legendWidth + 18, legendHeight + 52, 6);
+        ctx.fill();
+        ctx.strokeStyle = '#DEE2E6';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        // 标题
+        ctx.fillStyle = '#636E72';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('温度 °C', legendX + legendWidth / 2 + 5, legendY - 6);
+        
+        // 渐变条
+        const gradient = ctx.createLinearGradient(0, legendY + legendHeight, 0, legendY);
+        const steps = 20;
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const temp = this.params.ambientTemp + t * (this.params.initialTemp - this.params.ambientTemp);
+            const color = this.tempToColor(temp);
+            const y = legendY + legendHeight * (1 - t);
+            ctx.fillStyle = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+            ctx.fillRect(legendX + 5, y - legendHeight / steps / 2, legendWidth, legendHeight / steps + 1);
+        }
+        
+        // 边框
+        ctx.strokeStyle = '#DEE2E6';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(legendX + 5, legendY, legendWidth, legendHeight);
+        
+        // 温度标签
+        ctx.fillStyle = '#636E72';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'left';
+        const labelPositions = [0, 0.25, 0.5, 0.75, 1];
+        for (const pos of labelPositions) {
+            const temp = this.params.ambientTemp + pos * (this.params.initialTemp - this.params.ambientTemp);
+            const y = legendY + legendHeight * (1 - pos);
+            ctx.fillText(Math.round(temp) + '°C', legendX + legendWidth + 10, y + 3);
+            // 刻度线
+            ctx.strokeStyle = '#95A5A6';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(legendX + 5 + legendWidth, y);
+            ctx.lineTo(legendX + 5 + legendWidth + 4, y);
+            ctx.stroke();
+        }
+    }
+    
+    drawCrossSections(probeX, probeY, probeZ) {
+        if (!this.physicsEngine || !this.timeSteps || this.timeSteps.length === 0) return;
+        
+        document.getElementById('cs-x').textContent = probeX.toFixed(1);
+        document.getElementById('cs-y').textContent = probeY.toFixed(1);
+        document.getElementById('cs-z').textContent = probeZ.toFixed(1);
+        
+        const { rMax, hMax } = this.physicsEngine;
+        const timeIndex = this.currentTimeIndex;
+        
+        // 使用 requestAnimationFrame 确保 DOM 布局已完成再绘制
+        requestAnimationFrame(() => {
+            // XY剖面 (固定Z): 垂直切片
+            this.drawSingleCrossSection('cross-section-xy', (px, py, w, h) => {
+                const liquidX = (px / w) * 2 * rMax - rMax;
+                const liquidY = hMax - (py / h) * hMax;
+                const r = Math.sqrt(liquidX * liquidX + probeZ * probeZ);
+                if (r <= rMax && liquidY >= 0 && liquidY <= hMax) {
+                    return this.physicsEngine.getTemperatureAtPosition(liquidX, liquidY, probeZ, timeIndex);
+                }
+                return null;
+            });
+            
+            // XZ剖面 (固定Y): 水平切片
+            this.drawSingleCrossSection('cross-section-xz', (px, py, w, h) => {
+                const liquidX = (px / w) * 2 * rMax - rMax;
+                const liquidZ = rMax - (py / h) * 2 * rMax;
+                const r = Math.sqrt(liquidX * liquidX + liquidZ * liquidZ);
+                if (r <= rMax && probeY >= 0 && probeY <= hMax) {
+                    return this.physicsEngine.getTemperatureAtPosition(liquidX, probeY, liquidZ, timeIndex);
+                }
+                return null;
+            });
+            
+            // YZ剖面 (固定X): 垂直切片
+            this.drawSingleCrossSection('cross-section-yz', (px, py, w, h) => {
+                const liquidZ = (px / w) * 2 * rMax - rMax;
+                const liquidY = hMax - (py / h) * hMax;
+                const r = Math.sqrt(probeX * probeX + liquidZ * liquidZ);
+                if (r <= rMax && liquidY >= 0 && liquidY <= hMax) {
+                    return this.physicsEngine.getTemperatureAtPosition(probeX, liquidY, liquidZ, timeIndex);
+                }
+                return null;
+            });
+        });
+    }
+    
+    drawSingleCrossSection(canvasId, getTempFn) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        const drawWidth = Math.round(rect.width * dpr);
+        const drawHeight = Math.round(rect.height * dpr);
+        
+        if (canvas.width !== drawWidth || canvas.height !== drawHeight) {
+            canvas.width = drawWidth;
+            canvas.height = drawHeight;
+        }
+        
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, drawWidth, drawHeight);
+        
+        // 背景
+        ctx.fillStyle = '#F8F9FA';
+        ctx.fillRect(0, 0, drawWidth, drawHeight);
+        
+        // 绘制热力图像素
+        const pixelSize = Math.max(1, Math.ceil(dpr));
+        for (let py = 0; py < drawHeight; py += pixelSize) {
+            for (let px = 0; px < drawWidth; px += pixelSize) {
+                const temp = getTempFn(px, py, drawWidth, drawHeight);
+                if (temp !== null) {
+                    const color = this.tempToColor(temp);
+                    ctx.fillStyle = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+                    ctx.fillRect(px, py, pixelSize, pixelSize);
+                }
+            }
+        }
+        
+        // 边框
+        ctx.strokeStyle = '#DEE2E6';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, 0, drawWidth, drawHeight);
     }
     
     handleHeatmapClick(e) {
@@ -632,6 +809,8 @@ class WaterSimulatorApp {
             
             this.updateProbeChart(h);
             
+            this.drawCrossSections(r, h, 0);
+            
             this.draw2DHeatmap();
         }
     }
@@ -649,7 +828,7 @@ class WaterSimulatorApp {
             const size = diameter;
             geometry = new THREE.BoxGeometry(size, height, size);
         } else {
-            geometry = new THREE.CylinderGeometry(innerRadius, outerRadius, height, 32, 1, true);
+            geometry = new THREE.CylinderGeometry(outerRadius, outerRadius, height, 32, 1, true);
         }
         
         const material = new THREE.MeshPhongMaterial({
@@ -743,6 +922,13 @@ class WaterSimulatorApp {
             this.update3DVisualization();
         } else {
             this.draw2DHeatmap();
+        }
+        // 如果当前有探针位置，更新剖面图
+        if (this.currentProbePosition) {
+            const probeX = this.currentProbePosition.x;
+            const probeY = this.currentProbePosition.probeGlobalY || this.currentProbePosition.y;
+            const probeZ = this.currentProbePosition.z || 0;
+            this.drawCrossSections(probeX, probeY, probeZ);
         }
     }
     
@@ -841,6 +1027,8 @@ class WaterSimulatorApp {
                 this.currentProbePosition.probeGlobalY = probeGlobalY;
                 
                 this.updateProbeChart(probeGlobalY);
+                
+                this.drawCrossSections(point.x, probeGlobalY, point.z);
             } else {
                 document.getElementById('probe-info').classList.remove('active');
             }
@@ -913,6 +1101,10 @@ class WaterSimulatorApp {
         
         const strategy = this.physicsEngine.generateDrinkingStrategy(this.currentMaterial);
         const adviceCard = document.getElementById('advice-card');
+        
+        // 展开面板
+        document.getElementById('advice-section').classList.remove('collapsed');
+        
         const materialName = this.currentMaterial.name;
         
         let html = `<h4>🧠 AI 饮水策略分析</h4>`;
