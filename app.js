@@ -23,6 +23,7 @@ class WaterSimulatorApp {
             diameter: 80,
             height: 120,
             wallThickness: 3,
+            liquidLevel: 100,
             initialTemp: 85,
             ambientTemp: 25,
             targetMinTemp: 55,
@@ -75,6 +76,22 @@ class WaterSimulatorApp {
         updateParam('wall-thickness-slider', 'wall-thickness-input', 'wall-thickness-value', 'wallThickness', 'mm');
         updateParam('initial-temp-slider', 'initial-temp-input', 'initial-temp-value', 'initialTemp', '°C');
         updateParam('ambient-temp-slider', 'ambient-temp-input', 'ambient-temp-value', 'ambientTemp', '°C');
+        
+        // 液位高度同步(带%单位)
+        const syncLiquidLevel = () => {
+            const val = parseInt(document.getElementById('liquid-level-slider').value);
+            document.getElementById('liquid-level-value').textContent = val + '%';
+            this.params.liquidLevel = val;
+            if (this.physicsEngine) {
+                this.initVisualization();
+                if (this.timeSteps.length > 0) {
+                    document.getElementById('time-slider').max = this.timeSteps.length - 1;
+                    this.updateVisualization();
+                    this.updateTimeDisplay();
+                }
+            }
+        };
+        document.getElementById('liquid-level-slider').addEventListener('input', syncLiquidLevel);
         
         document.getElementById('target-min-slider').addEventListener('input', (e) => {
             const val = parseInt(e.target.value);
@@ -461,7 +478,7 @@ class WaterSimulatorApp {
         const container = document.getElementById('canvas-container');
         
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xF5F5F5);
+        this.scene.background = new THREE.Color(0xE8E0D8);
         
         const width = container.clientWidth;
         const height = container.clientHeight;
@@ -876,8 +893,10 @@ class WaterSimulatorApp {
     }
     
     createLiquid() {
-        const { diameter, height, wallThickness, shape } = this.params;
-        const liquidHeight = height - wallThickness * 2 - 2;
+        const { diameter, height, wallThickness, shape, liquidLevel } = this.params;
+        const maxLiquidHeight = height - wallThickness * 2 - 2;
+        const liquidHeight = maxLiquidHeight * (liquidLevel / 100);
+        const bottomY = (height - maxLiquidHeight) / 2 - wallThickness;
         
         let geometry;
         
@@ -920,7 +939,7 @@ class WaterSimulatorApp {
         });
         
         this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.position.y = (height - liquidHeight) / 2 - wallThickness;
+        this.mesh.position.y = bottomY + liquidHeight / 2;
         this.mesh.renderOrder = 2;
         this.scene.add(this.mesh);
     }

@@ -19,9 +19,9 @@ class HeatConductionEngine {
     }
     
     initGrid() {
-        const { diameter, height, wallThickness, shape } = this.params;
+        const { diameter, height, wallThickness, shape, liquidLevel } = this.params;
         
-        this.hMax = height - wallThickness * 2;
+        this.hMax = (height - wallThickness * 2) * (liquidLevel != null ? liquidLevel / 100 : 1.0);
         
         if (shape === 'cone') {
             this.rMaxBottom = diameter / 2 - wallThickness;
