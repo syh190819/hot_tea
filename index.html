@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智能饮水助手 - 科学计算最佳饮用时间</title>
+    <style>
+        :root {
+            --primary: #FF5A5F;
+            --primary-hover: #FF7E82;
+            --secondary: #00A699;
+            --secondary-hover: #00BBAD;
+            --accent: #FC642D;
+            --bg-dark: #FFFFFF;
+            --bg-card: #F8F9FA;
+            --bg-input: #E9ECEF;
+            --text-primary: #2D3436;
+            --text-secondary: #636E72;
+            --text-muted: #95A5A6;
+            --border: #DEE2E6;
+            --success: #00B894;
+            --warning: #FD79A8;
+            --shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.12);
+            --radius: 12px;
+            --radius-lg: 16px;
+            --radius-sm: 8px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: var(--bg-dark); color: var(--text-primary); overflow: hidden; -webkit-font-smoothing: antialiased; }
+        
+        .header {
+            background: var(--bg-card);
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 100;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .header .logo { display: flex; align-items: center; gap: 12px; }
+        .header .logo-icon { width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary), var(--accent)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+        .header .subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-input);
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .status-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+        .status-bar .computing { color: var(--accent); }
+        .status-bar .computing .dot { background: var(--accent); animation: pulse 1.5s infinite; }
+        
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .main-container { display: flex; height: calc(100vh - 60px); overflow: hidden; }
+        
+        .left-panel {
+            width: 360px;
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+        .left-panel::-webkit-scrollbar { width: 6px; }
+        .left-panel::-webkit-scrollbar-track { background: transparent; }
+        .left-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        
+        .panel-section { margin-bottom: 28px; }
+        .panel-section h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .param-row { margin-bottom: 16px; }
+        .param-row label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .param-row .param-value { color: var(--primary); font-weight: 600; }
+        .param-row input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-input);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+        .param-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .param-row input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+        .param-row input[type="number"], .param-row select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .param-row input[type="number"]:focus, .param-row select:focus { border-color: var(--primary); }
+        
+        .material-info {
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            margin-top: -8px;
+            margin-bottom: 16px;
+            border-left: 3px solid var(--secondary);
+        }
+        .material-info .material-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .liquid-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .liquid-option {
+            padding: 14px 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.25s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .liquid-option:hover { border-color: var(--primary); background: rgba(255, 90, 95, 0.08); }
+        .liquid-option.active { border-color: var(--primary); background: rgba(255, 90, 95, 0.12); }
+        .liquid-option .liquid-icon { font-size: 28px; }
+        .liquid-option .liquid-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255, 90, 95, 0.35); }
+        .btn-primary:active { transform: translateY(0); }
+        .btn-secondary {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { background: var(--border); }
+        
+        .target-temp-display {
+            background: linear-gradient(135deg, rgba(0, 184, 148, 0.1), rgba(0, 184, 148, 0.05));
+            border: 1px solid rgba(0, 184, 148, 0.3);
+            border-radius: var(--radius);
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        .target-temp-display .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .target-temp-display .range { font-size: 24px; color: var(--success); font-weight: 700; margin-top: 4px; }
+        
+        .physics-info {
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            margin-top: 16px;
+        }
+        .physics-info .title { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+        .physics-info .equation { font-family: 'SF Mono', 'Monaco', monospace; font-size: 12px; color: var(--text-secondary); text-align: center; padding: 8px; background: rgba(255, 90, 95, 0.05); border-radius: 4px; }
+        .physics-info .fact { font-size: 11px; color: var(--secondary); line-height: 1.6; margin-top: 10px; padding-left: 12px; border-left: 2px solid var(--secondary); }
+
+        .center-panel {
+            flex: 1;
+            position: relative;
+            background: var(--bg-dark);
+            display: flex;
+            flex-direction: column;
+        }
+        #canvas-container { flex: 1; width: 100%; }
+        
+        .canvas-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 14px 24px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .time-display {
+            font-family: 'SF Mono', 'Monaco', monospace;
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--primary);
+            min-width: 80px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+        
+        .time-slider { flex: 1; min-width: 250px; }
+        
+        .probe-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 16px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: none;
+            box-shadow: var(--shadow-lg);
+            min-width: 200px;
+        }
+        .probe-info.active { display: block; }
+        .probe-info .probe-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .probe-info .probe-temp { font-size: 20px; color: var(--accent); font-weight: 700; }
+        .probe-info .probe-coords { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+        .probe-close-btn {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 24px;
+            text-align: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .probe-close-btn:hover { background: var(--bg-input); color: var(--text-primary); }
+        
+        .right-panel {
+            width: 380px;
+            background: var(--bg-card);
+            border-left: 1px solid var(--border);
+            padding: 20px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+        .right-panel::-webkit-scrollbar { width: 6px; }
+        .right-panel::-webkit-scrollbar-track { background: transparent; }
+        .right-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        
+        .chart-container {
+            background: var(--bg-input);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+        .chart-container canvas { width: 100% !important; height: 220px !important; }
+        
+        .advice-card {
+            background: linear-gradient(135deg, rgba(0, 166, 153, 0.08), rgba(255, 90, 95, 0.05));
+            border-radius: var(--radius);
+            padding: 18px;
+            border: 1px solid rgba(0, 166, 153, 0.2);
+            margin-bottom: 20px;
+        }
+        .advice-card h4 {
+            color: var(--secondary);
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .advice-card p {
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+        .advice-card .strategy {
+            background: rgba(0, 166, 153, 0.08);
+            border-left: 3px solid var(--secondary);
+            padding: 12px;
+            margin-top: 12px;
+            border-radius: 0 4px 4px 0;
+        }
+        .advice-card .strategy strong { color: var(--secondary); font-size: 13px; }
+        
+        .phase-card {
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+        .phase-card:hover { border-color: var(--secondary); }
+        .phase-card .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .phase-card .phase-time { font-size: 12px; color: var(--primary); font-weight: 600; }
+        .phase-card .phase-name { font-size: 12px; color: var(--text-muted); }
+        .phase-card .phase-temps { font-size: 11px; color: var(--text-secondary); display: flex; gap: 12px; }
+        .phase-card .phase-temps span { font-family: 'SF Mono', monospace; }
+        .phase-card .phase-best { font-size: 12px; color: var(--success); margin-top: 6px; font-weight: 500; }
+        
+        .physics-params {
+            background: var(--bg-input);
+            border-radius: var(--radius);
+            padding: 16px;
+            border: 1px solid var(--border);
+        }
+        .physics-params .param-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+        .physics-params .param-item:last-child { border-bottom: none; }
+        .physics-params .param-label { font-size: 12px; color: var(--text-muted); }
+        .physics-params .param-val { font-size: 12px; color: var(--text-secondary); font-family: 'SF Mono', monospace; font-weight: 500; }
+
+        /* 剖面图样式 */
+        /* 剖面热力图 - 不再需要独立面板控制，已嵌入探针读数中 */
+        .cross-section-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .cross-section-card {
+            background: var(--bg-input);
+            border-radius: var(--radius-sm);
+            padding: 8px;
+            border: 1px solid var(--border);
+        }
+        .cross-section-card canvas {
+            width: 100% !important;
+            height: 90px !important;
+            border-radius: 4px;
+            display: block;
+        }
+        .cross-section-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        /* 可折叠面板 */
+        .collapsible { }
+        .collapsible .collapsible-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .collapsible .collapsible-header h3 { margin: 0; }
+        .collapsible .collapsible-header .collapse-icon {
+            font-size: 10px;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+        }
+        .collapsible.collapsed .collapsible-header .collapse-icon {
+            transform: rotate(0deg);
+        }
+        .collapsible:not(.collapsed) .collapsible-header .collapse-icon {
+            transform: rotate(90deg);
+        }
+        .collapsible .collapsible-body {
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            max-height: 1000px;
+            opacity: 1;
+        }
+        .collapsible.collapsed .collapsible-body {
+            max-height: 0;
+            opacity: 0;
+            padding: 0 16px;
+        }
+
+        .instructions {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-muted);
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .probe-input-row {
+            display: flex;
+            gap: 6px;
+        }
+        .probe-input-row input[type="number"] {
+            padding: 8px 10px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+            width: 100%;
+        }
+        .probe-input-row input[type="number"]:focus {
+            border-color: var(--primary);
+        }
+        .probe-input-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        @media (max-width: 1024px) {
+            .left-panel { width: 320px; }
+            .right-panel { width: 340px; }
+            .time-slider { min-width: 180px; }
+        }
+        
+        @media (max-width: 768px) {
+            .main-container { flex-direction: column; height: auto; }
+            .left-panel, .right-panel { width: 100%; border: none; border-bottom: 1px solid var(--border); padding: 16px; max-height: 40vh; }
+            .center-panel { height: 50vh; min-height: 300px; }
+            .canvas-controls { flex-wrap: wrap; justify-content: center; gap: 12px; padding: 12px 16px; }
+            .time-slider { min-width: 150px; }
+            .header h1 { font-size: 18px; }
+            .header { padding: 12px 16px; }
+            .liquid-grid { grid-template-columns: repeat(4, 1fr); }
+            .liquid-option .liquid-name { font-size: 11px; }
+            .liquid-option .liquid-icon { font-size: 24px; }
+            .instructions { display: none; }
+        }
+        
+        @media (max-width: 480px) {
+            .header { flex-direction: column; align-items: flex-start; }
+            .status-bar { align-self: flex-end; }
+            .left-panel, .right-panel { padding: 12px; }
+            .param-row { margin-bottom: 12px; }
+            .btn { padding: 12px; font-size: 14px; }
+            .canvas-controls { bottom: 10px; left: 10px; right: 10px; transform: none; }
+            .time-display { font-size: 18px; }
+            .probe-info { top: 10px; left: 10px; right: 10px; min-width: auto; }
+            .chart-container canvas { height: 180px !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">🍵</div>
+            <div>
+                <h1>智能饮水助手</h1>
+                <div class="subtitle">科学计算最佳饮用时间</div>
+            </div>
+        </div>
+        <div class="status-bar" id="status-bar">
+            <span class="dot"></span>
+            <span id="status-text">准备就绪</span>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="left-panel" id="left-panel">
+            <div class="panel-section">
+                <h3>容器参数</h3>
+                <div class="param-row">
+                    <label>杯子形状 <span class="param-value" id="shape-value">圆柱形</span></label>
+                    <select id="shape-select">
+                        <option value="cylinder">圆柱形</option>
+                        <option value="cone">锥形</option>
+                        <option value="cube">方杯</option>
+                    </select>
+                </div>
+                <div class="param-row">
+                    <label>杯壁材料 <span class="param-value" id="material-value">陶瓷</span></label>
+                    <select id="material-select">
+                        <option value="ceramic">陶瓷</option>
+                        <option value="glass">玻璃</option>
+                        <option value="stainless_steel">不锈钢</option>
+                        <option value="plastic">塑料</option>
+                        <option value="silicone">硅胶</option>
+                    </select>
+                </div>
+                <div class="material-info" id="material-info">
+                    <span class="material-desc">中等散热，保温性好</span>
+                </div>
+                <div class="param-row">
+                    <label>直径 (mm) <span class="param-value" id="diameter-value">80</span></label>
+                    <input type="range" id="diameter-slider" min="50" max="150" value="80" step="5">
+                    <input type="number" id="diameter-input" min="50" max="150" value="80">
+                </div>
+                <div class="param-row">
+                    <label>高度 (mm) <span class="param-value" id="height-value">120</span></label>
+                    <input type="range" id="height-slider" min="60" max="200" value="120" step="10">
+                    <input type="number" id="height-input" min="60" max="200" value="120">
+                </div>
+                <div class="param-row">
+                    <label>壁厚 (mm) <span class="param-value" id="wall-thickness-value">3</span></label>
+                    <input type="range" id="wall-thickness-slider" min="1" max="10" value="3" step="1">
+                    <input type="number" id="wall-thickness-input" min="1" max="10" value="3">
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>温度设置</h3>
+                <div class="param-row">
+                    <label>初始温度 (°C) <span class="param-value" id="initial-temp-value">85</span></label>
+                    <input type="range" id="initial-temp-slider" min="40" max="100" value="85" step="1">
+                    <input type="number" id="initial-temp-input" min="40" max="100" value="85">
+                </div>
+                <div class="param-row">
+                    <label>环境温度 (°C) <span class="param-value" id="ambient-temp-value">25</span></label>
+                    <input type="range" id="ambient-temp-slider" min="10" max="40" value="25" step="1">
+                    <input type="number" id="ambient-temp-input" min="10" max="40" value="25">
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>目标饮用温度</h3>
+                <div class="target-temp-display">
+                    <div class="label">理想温度范围</div>
+                    <div class="range" id="target-range">55 - 65°C</div>
+                </div>
+                <div class="param-row">
+                    <label>最低温度 (°C) <span class="param-value" id="target-min-value">55</span></label>
+                    <input type="range" id="target-min-slider" min="30" max="70" value="55" step="1">
+                </div>
+                <div class="param-row">
+                    <label>最高温度 (°C) <span class="param-value" id="target-max-value">65</span></label>
+                    <input type="range" id="target-max-slider" min="40" max="80" value="65" step="1">
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>液体类型</h3>
+                <div class="liquid-grid">
+                    <div class="liquid-option active" data-liquid="tea">
+                        <div class="liquid-icon">🍵</div>
+                        <div class="liquid-name">茶水</div>
+                    </div>
+                    <div class="liquid-option" data-liquid="coffee">
+                        <div class="liquid-icon">☕</div>
+                        <div class="liquid-name">咖啡</div>
+                    </div>
+                    <div class="liquid-option" data-liquid="juice">
+                        <div class="liquid-icon">🍹</div>
+                        <div class="liquid-name">果汁</div>
+                    </div>
+                    <div class="liquid-option" data-liquid="water">
+                        <div class="liquid-icon">💧</div>
+                        <div class="liquid-name">白开水</div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="start-btn">
+                <span>🔬</span> 开始模拟计算
+            </button>
+            <button class="btn btn-secondary" id="reset-btn" style="margin-top: 10px;">
+                <span>🔄</span> 重置参数
+            </button>
+
+            <div class="physics-info">
+                <div class="title">热传导方程</div>
+                <div class="equation">∂T/∂t = α(∂²T/∂r² + ∂²T/∂h²)</div>
+                <div class="fact">基于物理信息神经网络(PINN)进行热传导模拟，将物理方程作为损失函数约束</div>
+            </div>
+        </div>
+
+        <div class="center-panel">
+            <div id="canvas-container"></div>
+            
+            <div class="instructions" id="instructions">
+                <span>🖱️</span> 拖拽旋转模型 | 滚轮缩放
+            </div>
+
+            <div class="canvas-controls">
+                <button class="btn btn-secondary" id="play-btn" style="width: 40px; padding: 8px;">▶</button>
+                <div class="time-display" id="time-display">00:00</div>
+                <input type="range" class="time-slider" id="time-slider" min="0" max="100" value="0">
+            </div>
+
+            <div class="probe-info" id="probe-info">
+                <div class="probe-header">
+                    <span>探针读数</span>
+                    <span class="probe-temp" id="probe-temp">0</span>°C
+                    <button class="probe-close-btn" id="probe-close-btn">✕</button>
+                </div>
+                <div class="probe-coords">位置: (<span id="probe-x">0</span>, <span id="probe-y">0</span>, <span id="probe-z">0</span>)</div>
+                <div class="probe-chart-container" id="probe-chart-container" style="margin-top: 8px; width: 100%;">
+                    <canvas id="probe-chart" style="width: 100%; height: 90px;"></canvas>
+                </div>
+                <div class="cross-section-grid" style="margin-top: 8px;">
+                    <div class="cross-section-card">
+                        <div class="cross-section-label">XY 剖面 (Z=<span id="cs-z">0</span>)</div>
+                        <canvas id="cross-section-xy"></canvas>
+                    </div>
+                    <div class="cross-section-card">
+                        <div class="cross-section-label">XZ 剖面 (Y=<span id="cs-y">0</span>)</div>
+                        <canvas id="cross-section-xz"></canvas>
+                    </div>
+                    <div class="cross-section-card">
+                        <div class="cross-section-label">YZ 剖面 (X=<span id="cs-x">0</span>)</div>
+                        <canvas id="cross-section-yz"></canvas>
+                    </div>
+                </div>
+                <div class="probe-input-group" style="margin-top: 12px;">
+                    <div class="probe-input-label">直接输入坐标选点：</div>
+                    <div class="probe-input-row">
+                        <input type="number" id="input-probe-x" placeholder="X" step="0.1" style="flex: 1;">
+                        <input type="number" id="input-probe-y" placeholder="Y" step="0.1" style="flex: 1;">
+                        <input type="number" id="input-probe-z" placeholder="Z" step="0.1" style="flex: 1;">
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button class="btn btn-secondary" id="set-probe-btn" style="flex: 1;">定位选点</button>
+                        <button class="btn btn-primary" id="add-probe-btn" style="flex: 1;">添加至图表</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel" id="right-panel">
+            <div class="panel-section">
+                <h3>温度变化曲线</h3>
+                <div class="chart-container">
+                    <canvas id="temp-chart"></canvas>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>物理参数</h3>
+                <div class="physics-params">
+                    <div class="param-item">
+                        <span class="param-label">液体导热系数</span>
+                        <span class="param-val" id="k-value">0.58</span> W/m·°C
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">液体比热容</span>
+                        <span class="param-val" id="cp-value">4186</span> J/kg·°C
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">杯壁材料</span>
+                        <span class="param-val" id="wall-k-value">1.5</span> W/m·°C
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">液体密度</span>
+                        <span class="param-val" id="rho-value">998</span> kg/m³
+                    </div>
+                    <div class="param-item">
+                        <span class="param-label">热扩散率</span>
+                        <span class="param-val" id="alpha-value">1.41e-7</span> m²/s
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section collapsible collapsed" id="advice-section">
+                <div class="collapsible-header" id="advice-toggle">
+                    <h3>智能饮水建议</h3>
+                    <span class="collapse-icon">▶</span>
+                </div>
+                <div class="collapsible-body">
+                    <div class="advice-card" id="advice-card">
+                        <h4>🧠 AI 饮水策略分析</h4>
+                        <p>点击「开始模拟计算」按钮，系统将基于物理信息神经网络进行热传导模拟，为您生成最优饮水方案。</p>
+                        <div class="strategy">
+                            <strong>💡 提示：</strong>点击3D模型任意位置放置探针，可查看该点的温度变化曲线。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <script src="physics-engine.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
