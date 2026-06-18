@@ -483,7 +483,7 @@ class WaterSimulatorApp {
         const width = container.clientWidth;
         const height = container.clientHeight;
         this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
-        this.camera.position.set(0, 35, 90);
+        this.camera.position.set(0, 15, 88);
         
         try {
             this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
