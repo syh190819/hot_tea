@@ -483,7 +483,7 @@ class WaterSimulatorApp {
         const width = container.clientWidth;
         const height = container.clientHeight;
         this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
-        this.camera.position.set(0, 55, 180);
+        this.camera.position.set(0, 35, 90);
         
         try {
             this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -871,9 +871,6 @@ class WaterSimulatorApp {
         if (shape === 'cone') {
             const topRadius = diameter / 4;
             geometry = new THREE.CylinderGeometry(topRadius - wallThickness, outerRadius, height, 32, 1, true);
-        } else if (shape === 'cube') {
-            const size = diameter;
-            geometry = new THREE.BoxGeometry(size, height, size);
         } else {
             geometry = new THREE.CylinderGeometry(outerRadius, outerRadius, height, 32, 1, true);
         }
@@ -905,9 +902,6 @@ class WaterSimulatorApp {
             const topRadius = (diameter / 4) - wallThickness - 1;
             const bottomRadius = (diameter / 2) - wallThickness - 1;
             geometry = new THREE.CylinderGeometry(topRadius, bottomRadius, liquidHeight, 32, 24);
-        } else if (shape === 'cube') {
-            const size = diameter - wallThickness * 2 - 2;
-            geometry = new THREE.BoxGeometry(size, liquidHeight, size, 16, 24, 16);
         } else {
             const radius = diameter / 2 - wallThickness - 1;
             geometry = new THREE.CylinderGeometry(radius, radius, liquidHeight, 32, 24);
