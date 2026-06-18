@@ -956,18 +956,19 @@ class WaterSimulatorApp {
         const normalized = Math.max(0, Math.min(1, (temp - minTemp) / tempRange));
         
         // 红-橙-黄-青-蓝色阶: 高温(红) → 低温(蓝)
-        if (normalized < 0.25) {
-            const t = normalized / 0.25;
-            return { r: 0.9 + t * 0.1, g: 0.2 + t * 0.6, b: 0.1 + t * 0.2 };
-        } else if (normalized < 0.5) {
-            const t = (normalized - 0.25) / 0.25;
-            return { r: 1.0, g: 0.8 + t * 0.2, b: 0.3 + t * 0.3 };
-        } else if (normalized < 0.75) {
-            const t = (normalized - 0.5) / 0.25;
-            return { r: 0.8 - t * 0.4, g: 1.0 - t * 0.2, b: 0.6 + t * 0.1 };
-        } else {
+        // reversed: red=hot(high temp), blue=cold(low temp)
+        if (normalized > 0.75) {
             const t = (normalized - 0.75) / 0.25;
-            return { r: 0.4 - t * 0.4, g: 0.8 - t * 0.4, b: 0.7 + t * 0.3 };
+            return { r: 0.8 + t * 0.2, g: 0.2 + t * 0.6, b: 0.1 + t * 0.2 };
+        } else if (normalized > 0.5) {
+            const t = (normalized - 0.5) / 0.25;
+            return { r: 0.6 + t * 0.2, g: 0.8 + t * 0.2, b: 0.3 + t * 0.3 };
+        } else if (normalized > 0.25) {
+            const t = (normalized - 0.25) / 0.25;
+            return { r: 0.4 - t * 0.2, g: 1.0 - t * 0.2, b: 0.6 + t * 0.1 };
+        } else {
+            const t = normalized / 0.25;
+            return { r: 0.2 - t * 0.2, g: 0.8 - t * 0.4, b: 0.7 + t * 0.3 };
         }
     }
     
