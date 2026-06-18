@@ -931,41 +931,25 @@ class WaterSimulatorApp {
         const tempRange = maxTemp - minTemp;
         
         if (tempRange <= 0) {
-            return { r: 0.4, g: 0.4, b: 0.4 };
+            return { r: 0.6, g: 0.6, b: 0.6 };
         }
         
-        const t = Math.max(0, Math.min(1, (temp - minTemp) / tempRange));
+        const normalized = Math.max(0, Math.min(1, (temp - minTemp) / tempRange));
         
-        // Inferno perceptually uniform colormap (16-stop sampling)
-        const inferno = [
-            [0.001, 0.000, 0.013],
-            [0.064, 0.020, 0.143],
-            [0.180, 0.040, 0.366],
-            [0.347, 0.065, 0.529],
-            [0.519, 0.124, 0.553],
-            [0.663, 0.198, 0.484],
-            [0.771, 0.275, 0.387],
-            [0.854, 0.354, 0.289],
-            [0.917, 0.436, 0.197],
-            [0.962, 0.525, 0.118],
-            [0.987, 0.624, 0.058],
-            [0.987, 0.728, 0.032],
-            [0.958, 0.830, 0.040],
-            [0.939, 0.920, 0.141],
-            [0.965, 0.973, 0.468],
-            [0.988, 0.998, 0.790],
-        ];
-        
-        const idx = t * (inferno.length - 1);
-        const i0 = Math.floor(idx);
-        const i1 = Math.min(i0 + 1, inferno.length - 1);
-        const frac = idx - i0;
-        
-        return {
-            r: inferno[i0][0] + (inferno[i1][0] - inferno[i0][0]) * frac,
-            g: inferno[i0][1] + (inferno[i1][1] - inferno[i0][1]) * frac,
-            b: inferno[i0][2] + (inferno[i1][2] - inferno[i0][2]) * frac,
-        };
+        // 红-橙-黄-青-蓝色阶: 高温(红) → 低温(蓝)
+        if (normalized < 0.25) {
+            const t = normalized / 0.25;
+            return { r: 0.9 + t * 0.1, g: 0.2 + t * 0.6, b: 0.1 + t * 0.2 };
+        } else if (normalized < 0.5) {
+            const t = (normalized - 0.25) / 0.25;
+            return { r: 1.0, g: 0.8 + t * 0.2, b: 0.3 + t * 0.3 };
+        } else if (normalized < 0.75) {
+            const t = (normalized - 0.5) / 0.25;
+            return { r: 0.8 - t * 0.4, g: 1.0 - t * 0.2, b: 0.6 + t * 0.1 };
+        } else {
+            const t = (normalized - 0.75) / 0.25;
+            return { r: 0.4 - t * 0.4, g: 0.8 - t * 0.4, b: 0.7 + t * 0.3 };
+        }
     }
     
     updateVisualization() {
