@@ -990,19 +990,24 @@ class WaterSimulatorApp {
         
         const positions = this.mesh.geometry.attributes.position;
         const colors = this.mesh.geometry.attributes.color;
-        const { height, wallThickness } = this.params;
-        const liquidHeight = height - wallThickness * 2 - 2;
-        const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
-        const hMax = this.physicsEngine.hMax;
+        const { height, wallThickness, liquidLevel } = this.params;
+        const maxLiquidHeight = height - wallThickness * 2 - 2;
+        const liquidHeight = maxLiquidHeight * (liquidLevel / 100);
+        const innerBottom = -height / 2 + wallThickness + 1;
         
+        // 3D space: innerBottom to innerBottom+liquidHeight
+        // Physics engine: 0 to hMax (hMax = maxLiquidHeight * liquidLevel/100)
+        // Convert: physicsY = globalY - innerBottom
         for (let i = 0; i < positions.count; i++) {
             const x = positions.getX(i);
             const localY = positions.getY(i);
             const z = positions.getZ(i);
             
-            const globalY = localY + liquidHeight / 2;
+            // mesh.center = innerBottom + liquidHeight/2
+            const globalY = localY + innerBottom + liquidHeight / 2;
+            const physicsY = globalY - innerBottom;
             
-            const temp = this.physicsEngine.getTemperatureAtPosition(x, globalY, z, this.currentTimeIndex);
+            const temp = this.physicsEngine.getTemperatureAtPosition(x, physicsY, z, this.currentTimeIndex);
             const color = this.tempToColor(temp);
             
             colors.setXYZ(i, color.r, color.g, color.b);
@@ -1012,10 +1017,11 @@ class WaterSimulatorApp {
         
         if (this.probePoint) {
             const localY = this.probePoint.position.y;
-            const globalY = localY - liquidBaseY + liquidHeight / 2;
+            const globalY = localY + innerBottom + liquidHeight / 2;
+            const physicsY = globalY - innerBottom;
             const probeTemp = this.physicsEngine.getTemperatureAtPosition(
                 this.probePoint.position.x,
-                globalY,
+                physicsY,
                 this.probePoint.position.z,
                 this.currentTimeIndex
             );
