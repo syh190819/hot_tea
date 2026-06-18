@@ -12,7 +12,7 @@
             --secondary-hover: #00BBAD;
             --accent: #FC642D;
             --bg-dark: #FFFFFF;
-            --bg-card: #F8F9FA;
+            --bg-card: rgba(248, 249, 250, 0.72);
             --bg-input: #E9ECEF;
             --text-primary: #2D3436;
             --text-secondary: #636E72;
@@ -25,15 +25,37 @@
             --radius: 12px;
             --radius-lg: 16px;
             --radius-sm: 8px;
+            --glass-bg: rgba(255,255,255,0.68);
+            --glass-border: rgba(255,255,255,0.25);
+            --glass-shadow: 0 8px 32px rgba(0,0,0,0.06);
+            --neon-glow: 0 0 20px rgba(0, 230, 200, 0.15);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: var(--bg-dark); color: var(--text-primary); overflow: hidden; -webkit-font-smoothing: antialiased; }
+        html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: linear-gradient(135deg, #FAFAFA 0%, #F0F0F0 100%); color: var(--text-primary); overflow: hidden; -webkit-font-smoothing: antialiased; }
+        
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+        }
+        
+        .glass-strong {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255,255,255,0.4);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+        }
         
         .header {
-            background: var(--bg-card);
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
+            background: rgba(248,249,250,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 14px 24px;
+            border-bottom: 1px solid var(--glass-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -42,10 +64,13 @@
             flex-wrap: wrap;
             gap: 12px;
         }
-        .header .logo { display: flex; align-items: center; gap: 12px; }
-        .header .logo-icon { width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary), var(--accent)); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 20px; }
-        .header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
-        .header .subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .header .logo { display: flex; align-items: center; gap: 14px; }
+        .header .logo-icon { width: 42px; height: 42px; background: linear-gradient(135deg, #00E6C8, #0099FF); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: white; position: relative; }
+        .header .logo-icon::after { content: ''; position: absolute; inset: -2px; border-radius: 12px; background: linear-gradient(135deg, #00E6C8, #0099FF); opacity: 0.3; z-index: -1; filter: blur(6px); }
+        .header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; background: linear-gradient(135deg, #2D3436, #636E72); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .header .subtitle { font-size: 11px; color: var(--text-muted); margin-top: 1px; letter-spacing: 0.3px; }
+        .header .syncneuro-badge { font-size: 10px; font-weight: 600; color: #00E6C8; background: rgba(0, 230, 200, 0.12); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(0, 230, 200, 0.25); letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px; }
+        .header .syncneuro-badge::before { content: '⚡'; font-size: 12px; }
         
         .status-bar {
             display: flex;
@@ -69,7 +94,9 @@
         .left-panel {
             width: 360px;
             background: var(--bg-card);
-            border-right: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-right: 1px solid var(--glass-border);
             padding: 20px;
             overflow-y: auto;
             scrollbar-width: thin;
@@ -181,7 +208,19 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
+            position: relative;
+            overflow: hidden;
         }
+        .btn .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.35);
+            transform: scale(0);
+            animation: ripple-anim 0.6s ease-out;
+            pointer-events: none;
+        }
+        @keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+        @keyframes border-glow { 0%, 100% { border-color: rgba(0, 230, 200, 0.3); box-shadow: 0 0 8px rgba(0, 230, 200, 0.08); } 50% { border-color: rgba(0, 230, 200, 0.6); box-shadow: 0 0 20px rgba(0, 230, 200, 0.2); } }
         .btn-primary {
             background: linear-gradient(135deg, var(--primary), var(--accent));
             color: white;
@@ -293,7 +332,9 @@
         .right-panel {
             width: 380px;
             background: var(--bg-card);
-            border-left: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-left: 1px solid var(--glass-border);
             padding: 20px;
             overflow-y: auto;
             scrollbar-width: thin;
@@ -490,6 +531,57 @@
             .instructions { display: none; }
         }
         
+        /* HUD Overlay */
+        .hud-overlay {
+            position: absolute; top: 20px; right: 20px;
+            display: flex; gap: 8px;
+            font-family: 'SF Mono', 'Monaco', 'JetBrains Mono', monospace;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .hud-item {
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(8px);
+            padding: 6px 12px;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            min-width: 60px;
+        }
+        .hud-label { font-size: 8px; color: rgba(255,255,255,0.5); letter-spacing: 1px; }
+        .hud-val { font-size: 13px; color: #00E6C8; font-weight: 600; }
+        
+        /* Story Mode */
+        .story-overlay {
+            position: fixed; inset: 0; z-index: 1000;
+            display: flex; align-items: flex-end; justify-content: center;
+            padding: 40px;
+        }
+        .story-backdrop {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(4px);
+        }
+        .story-card {
+            position: relative;
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(24px);
+            border-radius: var(--radius-lg);
+            padding: 28px 32px;
+            max-width: 560px;
+            width: 100%;
+            animation: story-slide-up 0.4s ease-out;
+            z-index: 1;
+        }
+        @keyframes story-slide-up { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .story-step-indicator { display: flex; gap: 8px; margin-bottom: 20px; justify-content: center; }
+        .story-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: all 0.3s; }
+        .story-dot.active { width: 24px; border-radius: 4px; background: linear-gradient(90deg, #00E6C8, #00A699); }
+        .story-content h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; color: var(--text-primary); }
+        .story-content p { font-size: 14px; line-height: 1.8; color: var(--text-secondary); margin-bottom: 8px; }
+        .story-actions { display: flex; gap: 10px; margin-top: 20px; }
         @media (max-width: 480px) {
             .header { flex-direction: column; align-items: flex-start; }
             .status-bar { align-self: flex-end; }
@@ -506,15 +598,19 @@
 <body>
     <div class="header">
         <div class="logo">
-            <div class="logo-icon">🍵</div>
+            <div class="logo-icon">SN</div>
             <div>
-                <h1>智能饮水助手</h1>
-                <div class="subtitle">科学计算最佳饮用时间</div>
+                <h1>SyncNeuro 物理AI</h1>
+                <div class="subtitle">热传导智能模拟引擎 · 科学计算最佳饮用时间</div>
             </div>
+            <span class="syncneuro-badge">Physics-Informed AI</span>
         </div>
-        <div class="status-bar" id="status-bar">
-            <span class="dot"></span>
-            <span id="status-text">准备就绪</span>
+        <div style="display:flex; align-items:center; gap:12px;">
+            <div class="status-bar" id="status-bar">
+                <span class="dot"></span>
+                <span id="status-text">准备就绪</span>
+            </div>
+            <span id="accuracy-badge" style="display:none; font-size:11px; background:rgba(0,230,200,0.1); padding:4px 10px; border-radius:20px; border:1px solid rgba(0,230,200,0.2); color:var(--text-secondary);">精度: <span id="accuracy-val">±0.0</span>°C</span>
         </div>
     </div>
 
@@ -618,6 +714,9 @@
             <button class="btn btn-secondary" id="reset-btn" style="margin-top: 10px;">
                 <span>🔄</span> 重置参数
             </button>
+            <button class="btn btn-secondary" id="story-btn" style="margin-top: 10px; background: linear-gradient(135deg, rgba(0,230,200,0.1), rgba(0,153,255,0.08)); border:1px solid rgba(0,230,200,0.3); color:var(--text-primary);">
+                <span>🎬</span> 故事模式
+            </button>
 
             <div class="physics-info">
                 <div class="title">热传导方程</div>
@@ -628,6 +727,13 @@
 
         <div class="center-panel">
             <div id="canvas-container"></div>
+            
+            <!-- HUD Overlay -->
+            <div class="hud-overlay" id="hud-overlay" style="display:none;">
+                <div class="hud-item"><span class="hud-label">GRID</span><span class="hud-val" id="hud-grid">20×24</span></div>
+                <div class="hud-item"><span class="hud-label">SOLVER</span><span class="hud-val" id="hud-solver">FDM</span></div>
+                <div class="hud-item"><span class="hud-label">FPS</span><span class="hud-val" id="hud-fps">60</span></div>
+            </div>
             
             <div class="instructions" id="instructions">
                 <span>🖱️</span> 拖拽旋转模型 | 滚轮缩放
@@ -726,6 +832,29 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Story Mode Overlay -->
+    <div class="story-overlay" id="story-overlay" style="display:none;">
+        <div class="story-backdrop" id="story-backdrop"></div>
+        <div class="story-card glass-strong" id="story-card">
+            <div class="story-step-indicator" id="story-steps">
+                <span class="story-dot active"></span>
+                <span class="story-dot"></span>
+                <span class="story-dot"></span>
+                <span class="story-dot"></span>
+                <span class="story-dot"></span>
+            </div>
+            <div class="story-content" id="story-content">
+                <h3 id="story-title">从一杯茶开始</h3>
+                <p id="story-desc">SyncNeuro 物理AI正在模拟这杯茶的温度变化过程...</p>
+            </div>
+            <div class="story-actions">
+                <button class="btn btn-secondary" id="story-prev" style="width:auto; padding:10px 20px; flex:1;">← 上一步</button>
+                <button class="btn btn-primary" id="story-next" style="width:auto; padding:10px 20px; flex:1;">下一步 →</button>
+                <button class="btn btn-secondary" id="story-close" style="width:auto; padding:10px 20px;">✕</button>
             </div>
         </div>
     </div>
