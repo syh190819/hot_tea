@@ -894,9 +894,10 @@ class WaterSimulatorApp {
     
     createLiquid() {
         const { diameter, height, wallThickness, shape, liquidLevel } = this.params;
+        const innerBottom = -height / 2 + wallThickness + 1;
         const maxLiquidHeight = height - wallThickness * 2 - 2;
         const liquidHeight = maxLiquidHeight * (liquidLevel / 100);
-        const bottomY = (height - maxLiquidHeight) / 2 - wallThickness;
+        const liquidPosY = innerBottom + liquidHeight / 2;
         
         let geometry;
         
@@ -939,7 +940,7 @@ class WaterSimulatorApp {
         });
         
         this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.position.y = bottomY + liquidHeight / 2;
+        this.mesh.position.y = liquidPosY;
         this.mesh.renderOrder = 2;
         this.scene.add(this.mesh);
     }
