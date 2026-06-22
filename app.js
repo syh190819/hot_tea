@@ -23,6 +23,7 @@ class WaterSimulatorApp {
             diameter: 80,
             height: 120,
             wallThickness: 3,
+            liquidLevel: 100,
             initialTemp: 85,
             ambientTemp: 25,
             targetMinTemp: 55,
@@ -76,6 +77,22 @@ class WaterSimulatorApp {
         updateParam('initial-temp-slider', 'initial-temp-input', 'initial-temp-value', 'initialTemp', '°C');
         updateParam('ambient-temp-slider', 'ambient-temp-input', 'ambient-temp-value', 'ambientTemp', '°C');
         
+        // 液位高度同步(带%单位)
+        const syncLiquidLevel = () => {
+            const val = parseInt(document.getElementById('liquid-level-slider').value);
+            document.getElementById('liquid-level-value').textContent = val + '%';
+            this.params.liquidLevel = val;
+            if (this.physicsEngine) {
+                this.initVisualization();
+                if (this.timeSteps.length > 0) {
+                    document.getElementById('time-slider').max = this.timeSteps.length - 1;
+                    this.updateVisualization();
+                    this.updateTimeDisplay();
+                }
+            }
+        };
+        document.getElementById('liquid-level-slider').addEventListener('input', syncLiquidLevel);
+        
         document.getElementById('target-min-slider').addEventListener('input', (e) => {
             const val = parseInt(e.target.value);
             document.getElementById('target-min-value').textContent = val + '°C';
@@ -126,8 +143,14 @@ class WaterSimulatorApp {
             });
         });
         
-        document.getElementById('start-btn').addEventListener('click', () => this.startSimulation());
-        document.getElementById('reset-btn').addEventListener('click', () => this.resetSimulation());
+        document.getElementById('start-btn').addEventListener('click', (e) => {
+            this.addRipple(e);
+            this.startSimulation();
+        });
+        document.getElementById('reset-btn').addEventListener('click', (e) => {
+            this.addRipple(e);
+            this.resetSimulation();
+        });
         
         document.getElementById('time-slider').addEventListener('input', (e) => {
             this.currentTimeIndex = parseInt(e.target.value);
@@ -135,10 +158,16 @@ class WaterSimulatorApp {
             this.updateTimeDisplay();
         });
         
-        document.getElementById('add-probe-btn').addEventListener('click', () => this.addProbeToChart());
+        document.getElementById('add-probe-btn').addEventListener('click', (e) => { this.addRipple(e); this.addProbeToChart(); });
         document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
-        document.getElementById('set-probe-btn').addEventListener('click', () => this.setProbeFromInput());
+        document.getElementById('set-probe-btn').addEventListener('click', (e) => { this.addRipple(e); this.setProbeFromInput(); });
         document.getElementById('probe-close-btn').addEventListener('click', () => this.closeProbeInfo());
+        
+        // 故事模式
+        document.getElementById('story-btn').addEventListener('click', (e) => { this.addRipple(e); this.openStoryMode(); });
+        document.getElementById('story-next').addEventListener('click', () => this.storyNext());
+        document.getElementById('story-prev').addEventListener('click', () => this.storyPrev());
+        document.getElementById('story-close').addEventListener('click', (e) => { this.addRipple(e); this.closeStoryMode(); });
         
         // 折叠面板切换
         document.getElementById('advice-toggle').addEventListener('click', () => {
@@ -449,43 +478,61 @@ class WaterSimulatorApp {
         const container = document.getElementById('canvas-container');
         
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xFFFFFF);
+        this.scene.background = new THREE.Color(0xE8E0D8);
         
         const width = container.clientWidth;
         const height = container.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-        this.camera.position.set(0, 60, 200);
+        this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
+        this.camera.position.set(0, 15, 88);
         
         try {
-            this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
             this.renderer.setSize(width, height);
-            this.renderer.setPixelRatio(window.devicePixelRatio);
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            this.renderer.shadowMap.enabled = true;
+            this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            this.renderer.toneMappingExposure = 1.2;
             container.appendChild(this.renderer.domElement);
             
             try {
                 this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
                 this.controls.enableDamping = true;
-                this.controls.dampingFactor = 0.05;
-                this.controls.minDistance = 100;
-                this.controls.maxDistance = 400;
+                this.controls.dampingFactor = 0.08;
+                this.controls.minDistance = 90;
+                this.controls.maxDistance = 350;
+                this.controls.autoRotate = true;
+                this.controls.autoRotateSpeed = 0.8;
             } catch (e) {
                 console.warn('OrbitControls 未加载，使用静态视角:', e);
                 this.controls = null;
             }
             
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            // Enhanced lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
             this.scene.add(ambientLight);
             
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
-            directionalLight.position.set(60, 120, 60);
-            this.scene.add(directionalLight);
+            const hemiLight = new THREE.HemisphereLight(0xddeeff, 0x0f0e0d, 0.6);
+            this.scene.add(hemiLight);
             
-            const pointLight = new THREE.PointLight(0xFF5A5F, 0.2);
-            pointLight.position.set(-40, 80, -40);
-            this.scene.add(pointLight);
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            mainLight.position.set(40, 100, 50);
+            mainLight.castShadow = true;
+            mainLight.shadow.mapSize.width = 1024;
+            mainLight.shadow.mapSize.height = 1024;
+            this.scene.add(mainLight);
+            
+            const fillLight = new THREE.DirectionalLight(0x4488ff, 0.3);
+            fillLight.position.set(-40, 30, -60);
+            this.scene.add(fillLight);
+            
+            const rimLight = new THREE.DirectionalLight(0xFF5A5F, 0.25);
+            rimLight.position.set(0, -40, -80);
+            this.scene.add(rimLight);
             
             this.createCup();
             this.createLiquid();
+            this.createParticles();
             
             this.setupRaycaster();
             
@@ -824,9 +871,6 @@ class WaterSimulatorApp {
         if (shape === 'cone') {
             const topRadius = diameter / 4;
             geometry = new THREE.CylinderGeometry(topRadius - wallThickness, outerRadius, height, 32, 1, true);
-        } else if (shape === 'cube') {
-            const size = diameter;
-            geometry = new THREE.BoxGeometry(size, height, size);
         } else {
             geometry = new THREE.CylinderGeometry(outerRadius, outerRadius, height, 32, 1, true);
         }
@@ -846,8 +890,11 @@ class WaterSimulatorApp {
     }
     
     createLiquid() {
-        const { diameter, height, wallThickness, shape } = this.params;
-        const liquidHeight = height - wallThickness * 2 - 2;
+        const { diameter, height, wallThickness, shape, liquidLevel } = this.params;
+        const innerBottom = -height / 2 + wallThickness + 1;
+        const maxLiquidHeight = height - wallThickness * 2 - 2;
+        const liquidHeight = maxLiquidHeight * (liquidLevel / 100);
+        const liquidPosY = innerBottom + liquidHeight / 2;
         
         let geometry;
         
@@ -855,9 +902,6 @@ class WaterSimulatorApp {
             const topRadius = (diameter / 4) - wallThickness - 1;
             const bottomRadius = (diameter / 2) - wallThickness - 1;
             geometry = new THREE.CylinderGeometry(topRadius, bottomRadius, liquidHeight, 32, 24);
-        } else if (shape === 'cube') {
-            const size = diameter - wallThickness * 2 - 2;
-            geometry = new THREE.BoxGeometry(size, liquidHeight, size, 16, 24, 16);
         } else {
             const radius = diameter / 2 - wallThickness - 1;
             geometry = new THREE.CylinderGeometry(radius, radius, liquidHeight, 32, 24);
@@ -877,16 +921,20 @@ class WaterSimulatorApp {
         
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         
-        const material = new THREE.MeshPhongMaterial({
+        const material = new THREE.MeshPhysicalMaterial({
             vertexColors: true,
             transparent: true,
-            opacity: 0.9,
-            shininess: 120,
-            side: THREE.DoubleSide
+            opacity: 0.92,
+            roughness: 0.15,
+            metalness: 0.0,
+            clearcoat: 0.3,
+            clearcoatRoughness: 0.25,
+            side: THREE.DoubleSide,
+            envMapIntensity: 0.6,
         });
         
         this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.position.y = (height - liquidHeight) / 2 - wallThickness;
+        this.mesh.position.y = liquidPosY;
         this.mesh.renderOrder = 2;
         this.scene.add(this.mesh);
     }
@@ -897,23 +945,25 @@ class WaterSimulatorApp {
         const tempRange = maxTemp - minTemp;
         
         if (tempRange <= 0) {
-            return { r: 0.7, g: 0.7, b: 0.7 };
+            return { r: 0.6, g: 0.6, b: 0.6 };
         }
         
         const normalized = Math.max(0, Math.min(1, (temp - minTemp) / tempRange));
         
-        if (normalized < 0.25) {
-            const t = normalized / 0.25;
-            return { r: 0.0, g: 0.4 + t * 0.3, b: 0.9 + t * 0.1 };
-        } else if (normalized < 0.5) {
-            const t = (normalized - 0.25) / 0.25;
-            return { r: 0.0, g: 0.7 + t * 0.3, b: 1.0 - t * 0.3 };
-        } else if (normalized < 0.75) {
-            const t = (normalized - 0.5) / 0.25;
-            return { r: 0.0 + t * 0.8, g: 1.0 - t * 0.2, b: 0.7 - t * 0.4 };
-        } else {
+        // 红-橙-黄-青-蓝色阶: 高温(红) → 低温(蓝)
+        // reversed: red=hot(high temp), blue=cold(low temp)
+        if (normalized > 0.75) {
             const t = (normalized - 0.75) / 0.25;
-            return { r: 0.8 + t * 0.2, g: 0.8 - t * 0.5, b: 0.3 - t * 0.3 };
+            return { r: 0.8 + t * 0.2, g: 0.2 + t * 0.6, b: 0.1 + t * 0.2 };
+        } else if (normalized > 0.5) {
+            const t = (normalized - 0.5) / 0.25;
+            return { r: 0.6 + t * 0.2, g: 0.8 + t * 0.2, b: 0.3 + t * 0.3 };
+        } else if (normalized > 0.25) {
+            const t = (normalized - 0.25) / 0.25;
+            return { r: 0.4 - t * 0.2, g: 1.0 - t * 0.2, b: 0.6 + t * 0.1 };
+        } else {
+            const t = normalized / 0.25;
+            return { r: 0.2 - t * 0.2, g: 0.8 - t * 0.4, b: 0.7 + t * 0.3 };
         }
     }
     
@@ -940,19 +990,24 @@ class WaterSimulatorApp {
         
         const positions = this.mesh.geometry.attributes.position;
         const colors = this.mesh.geometry.attributes.color;
-        const { height, wallThickness } = this.params;
-        const liquidHeight = height - wallThickness * 2 - 2;
-        const liquidBaseY = (height - liquidHeight) / 2 - wallThickness;
-        const hMax = this.physicsEngine.hMax;
+        const { height, wallThickness, liquidLevel } = this.params;
+        const maxLiquidHeight = height - wallThickness * 2 - 2;
+        const liquidHeight = maxLiquidHeight * (liquidLevel / 100);
+        const innerBottom = -height / 2 + wallThickness + 1;
         
+        // 3D space: innerBottom to innerBottom+liquidHeight
+        // Physics engine: 0 to hMax (hMax = maxLiquidHeight * liquidLevel/100)
+        // Convert: physicsY = globalY - innerBottom
         for (let i = 0; i < positions.count; i++) {
             const x = positions.getX(i);
             const localY = positions.getY(i);
             const z = positions.getZ(i);
             
-            const globalY = localY + liquidHeight / 2;
+            // mesh.center = innerBottom + liquidHeight/2
+            const globalY = localY + innerBottom + liquidHeight / 2;
+            const physicsY = globalY - innerBottom;
             
-            const temp = this.physicsEngine.getTemperatureAtPosition(x, globalY, z, this.currentTimeIndex);
+            const temp = this.physicsEngine.getTemperatureAtPosition(x, physicsY, z, this.currentTimeIndex);
             const color = this.tempToColor(temp);
             
             colors.setXYZ(i, color.r, color.g, color.b);
@@ -962,10 +1017,11 @@ class WaterSimulatorApp {
         
         if (this.probePoint) {
             const localY = this.probePoint.position.y;
-            const globalY = localY - liquidBaseY + liquidHeight / 2;
+            const globalY = localY + innerBottom + liquidHeight / 2;
+            const physicsY = globalY - innerBottom;
             const probeTemp = this.physicsEngine.getTemperatureAtPosition(
                 this.probePoint.position.x,
-                globalY,
+                physicsY,
                 this.probePoint.position.z,
                 this.currentTimeIndex
             );
@@ -1152,6 +1208,17 @@ class WaterSimulatorApp {
             }
             this.renderer.render(this.scene, this.camera);
         }
+        
+        // HUD FPS counter
+        if (this.hudFpsCounter !== undefined) {
+            const now = performance.now();
+            if (now - this.hudLastFpsTime > 500) {
+                document.getElementById('hud-fps').textContent = Math.round(this.hudFpsCounter / ((now - this.hudLastFpsTime) / 1000));
+                this.hudFpsCounter = 0;
+                this.hudLastFpsTime = now;
+            }
+            this.hudFpsCounter++;
+        }
     }
     
     updateTimeDisplay() {
@@ -1228,8 +1295,155 @@ class WaterSimulatorApp {
         
         this.updateStatus('准备就绪', false);
     }
+    
+    // ======== Phase 0: 新增方法 ========
+    
+    addRipple(e) {
+        const btn = e.currentTarget;
+        const rect = btn.getBoundingClientRect();
+        const ripple = document.createElement('span');
+        ripple.className = 'ripple';
+        const size = Math.max(rect.width, rect.height);
+        ripple.style.width = ripple.style.height = size + 'px';
+        ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+        ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+        btn.appendChild(ripple);
+        ripple.addEventListener('animationend', () => ripple.remove());
+    }
+    
+    // HUD
+    initHUD() {
+        document.getElementById('hud-overlay').style.display = 'flex';
+        document.getElementById('hud-grid').textContent = `${this.physicsEngine?.nr || 20}×${this.physicsEngine?.nh || 24}`;
+        document.getElementById('hud-solver').textContent = 'FDM';
+        this.hudFpsCounter = 0;
+        this.hudLastFpsTime = performance.now();
+    }
+    
+    // 蒸发粒子系统
+    createParticles() {
+        if (this.particleSystem) {
+            this.scene.remove(this.particleSystem);
+        }
+        const count = 120;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(count * 3);
+        const velocities = [];
+        
+        for (let i = 0; i < count; i++) {
+            const radius = (Math.random() * 0.6 + 0.1) * (this.params.diameter / 2 - this.params.wallThickness - 1);
+            const angle = Math.random() * Math.PI * 2;
+            positions[i * 3] = Math.cos(angle) * radius;
+            positions[i * 3 + 1] = (this.params.height - this.params.wallThickness * 2 - 2) * 0.9 + 2 + Math.random() * 3;
+            positions[i * 3 + 2] = Math.sin(angle) * radius;
+            velocities.push({
+                x: (Math.random() - 0.5) * 0.3,
+                y: Math.random() * 0.5 + 0.2,
+                z: (Math.random() - 0.5) * 0.3,
+            });
+        }
+        
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        this.particleVelocities = velocities;
+        
+        const material = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 1.2,
+            transparent: true,
+            opacity: 0.5,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        
+        this.particleSystem = new THREE.Points(geometry, material);
+        this.particleSystem.renderOrder = 3;
+        this.scene?.add(this.particleSystem);
+        
+        // Animate particles in render loop
+        this._animateParticles = () => {
+            if (!this.particleSystem || !this.physicsEngine) return;
+            const pos = this.particleSystem.geometry.attributes.position;
+            const liquidHeight = (this.params.height - this.params.wallThickness * 2 - 2);
+            const surfaceY = liquidHeight * 0.9 + liquidHeight / 2;
+            const temp = this.physicsEngine?.grid?.[Math.floor((this.physicsEngine?.nr || 20) / 2)]?.[Math.floor((this.physicsEngine?.nh || 24) * 0.9)] || 0;
+            const intensity = Math.max(0.1, (temp - this.params.ambientTemp) / (this.params.initialTemp - this.params.ambientTemp));
+            this.particleSystem.material.opacity = 0.15 * intensity + 0.1;
+            
+            for (let i = 0; i < pos.count; i++) {
+                pos.array[i * 3] += this.particleVelocities[i].x * intensity * 0.5;
+                pos.array[i * 3 + 1] += this.particleVelocities[i].y * intensity * 0.5;
+                pos.array[i * 3 + 2] += this.particleVelocities[i].z * intensity * 0.5;
+                
+                // Reset when too high or too far
+                if (pos.array[i * 3 + 1] > surfaceY + 25 || Math.abs(pos.array[i * 3]) > this.params.diameter) {
+                    const radius = (Math.random() * 0.6 + 0.1) * (this.params.diameter / 2 - this.params.wallThickness - 1);
+                    const angle = Math.random() * Math.PI * 2;
+                    pos.array[i * 3] = Math.cos(angle) * radius;
+                    pos.array[i * 3 + 1] = surfaceY - liquidHeight / 2 + Math.random() * 2;
+                    pos.array[i * 3 + 2] = Math.sin(angle) * radius;
+                }
+            }
+            pos.needsUpdate = true;
+        };
+        
+        // Hook into animate loop
+        if (this._particleInterval) clearInterval(this._particleInterval);
+        this._particleInterval = setInterval(() => {
+            if (this._animateParticles) this._animateParticles();
+        }, 50);
+    }
+    
+    // 故事模式
+    openStoryMode() {
+        this.storyStep = 0;
+        this.storyData = [
+            { title: '从一杯茶开始', desc: 'SyncNeuro 物理AI正在模拟陶瓷杯中85°C热茶的自然冷却过程。温度场从杯壁和液面逐渐散热，内部热量向四周传导。', highlight: '' },
+            { title: '改变杯壁材料', desc: '切换为不锈钢材质观察区别。不锈钢导热系数(17.0 W/m·°C)远高于陶瓷(1.5 W/m·°C)，杯壁散热速度显著加快，温度分布更加不均匀。', highlight: 'material-select' },
+            { title: '深度温度检测', desc: '点击3D模型上的任意位置放置探针，系统会实时显示该点的温度和变化曲线。杯中心和杯壁的温度差异可达10°C以上。', highlight: 'canvas-container' },
+            { title: 'AI 智能分析', desc: '基于完整的温度场模拟数据，SyncNeuro引擎自动分析出最佳饮用时段和各阶段的推荐饮用位置。', highlight: 'advice-section' },
+            { title: 'SyncNeuro 物理AI', desc: '与传统数值方法(需要1-3秒重算)不同，PINN模型经过训练后可在毫秒级完成推理。这正是物理AI驱动工业智能的核心优势。', highlight: '' },
+        ];
+        this.updateStoryContent();
+        document.getElementById('story-overlay').style.display = 'flex';
+    }
+    
+    updateStoryContent() {
+        const data = this.storyData[this.storyStep];
+        document.getElementById('story-title').textContent = data.title;
+        document.getElementById('story-desc').textContent = data.desc;
+        const dots = document.querySelectorAll('.story-dot');
+        dots.forEach((d, i) => d.classList.toggle('active', i === this.storyStep));
+        document.getElementById('story-prev').style.display = this.storyStep === 0 ? 'none' : '';
+        document.getElementById('story-next').textContent = this.storyStep === this.storyData.length - 1 ? '完成 ✓' : '下一步 →';
+    }
+    
+    storyNext() {
+        if (this.storyStep < this.storyData.length - 1) {
+            this.storyStep++;
+            this.updateStoryContent();
+        } else {
+            this.closeStoryMode();
+        }
+    }
+    
+    storyPrev() {
+        if (this.storyStep > 0) {
+            this.storyStep--;
+            this.updateStoryContent();
+        }
+    }
+    
+    closeStoryMode() {
+        document.getElementById('story-overlay').style.display = 'none';
+    }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-    new WaterSimulatorApp();
+    const app = new WaterSimulatorApp();
+    // 自动播放: 页面加载后自动启动模拟
+    setTimeout(() => {
+        app.startSimulation();
+        // 显示HUD
+        setTimeout(() => app.initHUD(), 200);
+    }, 500);
 });

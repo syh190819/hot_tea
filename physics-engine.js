@@ -19,16 +19,14 @@ class HeatConductionEngine {
     }
     
     initGrid() {
-        const { diameter, height, wallThickness, shape } = this.params;
+        const { diameter, height, wallThickness, shape, liquidLevel } = this.params;
         
-        this.hMax = height - wallThickness * 2;
+        this.hMax = (height - wallThickness * 2) * (liquidLevel != null ? liquidLevel / 100 : 1.0);
         
         if (shape === 'cone') {
             this.rMaxBottom = diameter / 2 - wallThickness;
             this.rMaxTop = diameter / 4 - wallThickness;
             this.rMax = this.rMaxBottom;
-        } else if (shape === 'cube') {
-            this.rMax = (diameter / 2 - wallThickness) * 1.414;
         } else {
             this.rMax = diameter / 2 - wallThickness;
         }
@@ -67,16 +65,6 @@ class HeatConductionEngine {
         const localRMax = this.getLocalRMax(h);
         let rRatio = r / localRMax;
         
-        if (this.params.shape === 'cube') {
-            const squareHalfSize = (this.params.diameter / 2 - this.params.wallThickness);
-            const cornerR = squareHalfSize * 1.414;
-            const edgeR = squareHalfSize;
-            if (r > edgeR) {
-                const cornerFactor = 1 + 0.5 * ((r - edgeR) / (cornerR - edgeR));
-                rRatio = Math.min(1, rRatio * cornerFactor);
-            }
-        }
-        
         return Math.min(1, Math.max(0, rRatio));
     }
     
@@ -93,7 +81,7 @@ class HeatConductionEngine {
         const surfaceCoolingFactor = 6.0 * (1 - insulationFactor * 0.3);
         
         console.log('=== 物理引擎开始计算 ===');
-        console.log(`杯子形状: ${shape === 'cylinder' ? '圆柱形' : shape === 'cone' ? '锥形' : '方杯'}`);
+        console.log(`杯子形状: ${shape === 'cylinder' ? '圆柱形' : '锥形'}`);
         console.log(`杯壁材料: ${this.currentMaterial.name} (导热系数: ${this.currentMaterial.k} W/m·°C)`);
         console.log(`保温系数: ${insulationFactor}`);
         console.log(`初始温度: ${initialTemp}°C, 环境温度: ${ambientTemp}°C`);
