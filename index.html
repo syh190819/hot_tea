@@ -624,7 +624,7 @@
                 <span class="dot"></span>
                 <span id="status-text">准备就绪</span>
             </div>
-            <span id="accuracy-badge" style="display:none; font-size:11px; background:rgba(0,230,200,0.1); padding:4px 10px; border-radius:20px; border:1px solid rgba(0,230,200,0.2); color:var(--text-secondary);">精度: <span id="accuracy-val">±0.0</span>°C</span>
+            <span id="accuracy-badge" style="display:none; font-size:11px; background:rgba(0,230,200,0.1); padding:4px 10px; border-radius:20px; border:1px solid rgba(0,230,200,0.2); color:var(--text-secondary); gap:6px; align-items:center; font-family:'SF Mono','Monaco',monospace;"></span>
         </div>
     </div>
 
@@ -725,6 +725,18 @@
                             <div class="liquid-name">白开水</div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="panel-section" style="padding:0 20px;">
+                <h3 style="margin-bottom:10px;">物理AI精度</h3>
+                <div style="display:flex; gap:6px;">
+                    <button class="btn btn-secondary pinn-level-btn" data-level="low" style="flex:1; padding:8px; font-size:12px;">快速</button>
+                    <button class="btn btn-primary pinn-level-btn" data-level="medium" style="flex:1; padding:8px; font-size:12px;">标准</button>
+                    <button class="btn btn-secondary pinn-level-btn" data-level="high" style="flex:1; padding:8px; font-size:12px;">高精度</button>
+                </div>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:6px; text-align:center;">
+                    当前: <span id="pinn-level-value">标准</span>
                 </div>
             </div>
 

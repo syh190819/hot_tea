@@ -43,6 +43,17 @@ class WaterSimulatorApp {
         this.currentMaterial = this.wallMaterials.ceramic;
         this.isPlaying = false;
         
+        // === Demo 指标追踪 ===
+        this.metrics = {
+            simCount: 0,
+            totalSimTime: 0,
+            avgSimTime: 0,
+            lastSimTime: 0,
+            accuracy: null,      // vs CFD 偏差
+            accuracyLabel: '',
+            pinnLevel: 'medium', // low / medium / high
+        };
+        
         this.init();
     }
     
@@ -140,6 +151,18 @@ class WaterSimulatorApp {
                 opt.classList.add('active');
                 this.params.liquidType = opt.dataset.liquid;
                 this.updatePhysicsParamsDisplay();
+            });
+        });
+        
+        // PINN精度等级选择
+        document.querySelectorAll('.pinn-level-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.addRipple(e);
+                document.querySelectorAll('.pinn-level-btn').forEach(b => {
+                    b.className = b.className.replace('btn-primary', 'btn-secondary');
+                });
+                btn.className = btn.className.replace('btn-secondary', 'btn-primary');
+                this.setPINNLevel(btn.dataset.level);
             });
         });
         
@@ -406,6 +429,7 @@ class WaterSimulatorApp {
     
     startSimulation() {
         this.updateStatus('计算中...', true);
+        const t0 = performance.now();
         
         setTimeout(() => {
             try {
@@ -413,9 +437,18 @@ class WaterSimulatorApp {
                 this.currentMaterial = this.physicsEngine.currentMaterial;
                 this.timeSteps = this.physicsEngine.solve();
                 
+                // 更新指标
+                const elapsed = performance.now() - t0;
+                this.metrics.simCount++;
+                this.metrics.totalSimTime += elapsed;
+                this.metrics.lastSimTime = elapsed;
+                this.metrics.avgSimTime = this.metrics.totalSimTime / this.metrics.simCount;
+                this.updateMetricsDisplay();
+                
                 console.log('计算完成，时间步数:', this.timeSteps.length);
                 console.log('物理引擎实例:', this.physicsEngine);
                 console.log('杯壁材料:', this.currentMaterial);
+                console.log(`模拟耗时: ${elapsed.toFixed(1)}ms`);
                 
                 this.initVisualization();
                 
@@ -439,6 +472,9 @@ class WaterSimulatorApp {
                 
                 this.generateAdvice();
                 this.updateStatus('计算完成', false);
+
+                // 异步发起CFD精度校验
+                this.requestCFDValidation();
             } catch (error) {
                 console.error('模拟计算失败:', error);
                 this.updateStatus('计算失败', false);
@@ -1237,6 +1273,67 @@ class WaterSimulatorApp {
         const statusText = document.getElementById('status-text');
         statusText.textContent = text;
         statusText.className = isComputing ? 'computing' : '';
+    }
+    
+    // === Demo 指标展示 ===
+    updateMetricsDisplay() {
+        const badge = document.getElementById('accuracy-badge');
+        if (badge) {
+            badge.style.display = 'inline-flex';
+            badge.innerHTML = `
+                <span style="color:#95A5A6;">#${this.metrics.simCount}</span>
+                <span style="color:#636E72;">${this.metrics.lastSimTime.toFixed(0)}ms</span>
+                <span style="color:#00A699;">avg ${this.metrics.avgSimTime.toFixed(0)}ms</span>
+                ${this.metrics.accuracy !== null ? `<span style="color:#FF5A5F;">±${this.metrics.accuracy.toFixed(2)}°C</span>` : ''}
+            `;
+        }
+    }
+    
+    setAccuracy(deviation) {
+        this.metrics.accuracy = deviation;
+        this.updateMetricsDisplay();
+    }
+    
+    // === CFD精度验证 ===
+    async requestCFDValidation() {
+        const CFD_URL = `http://${window.location.hostname || 'localhost'}:8020`;
+        const grid = this.timeSteps[this.currentTimeIndex];
+        if (!grid) return;
+        
+        try {
+            const resp = await fetch(`${CFD_URL}/api/compare`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    diameter: this.params.diameter,
+                    height: this.params.height,
+                    wall_thickness: this.params.wallThickness,
+                    liquid_level: this.params.liquidLevel,
+                    initial_temp: this.params.initialTemp,
+                    ambient_temp: this.params.ambientTemp,
+                    wall_k: this.currentMaterial?.k || 1.5,
+                    liquid_type: this.params.liquidType || 'tea',
+                    num_time_steps: 100,
+                    browser_grid: grid,
+                }),
+            });
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (data.mae !== undefined) {
+                this.setAccuracy(data.mae);
+                console.log(`CFD验证: MAE=${data.mae.toFixed(3)}°C, MAX=${data.max_ae.toFixed(3)}°C`);
+            }
+        } catch (_) {
+            // CFD服务未启动时静默失败
+            console.log('CFD后端未启动，跳过精度验证');
+        }
+    }
+    
+    // === PINN精度等级 ===
+    setPINNLevel(level) {
+        this.metrics.pinnLevel = level;
+        document.getElementById('pinn-level-value').textContent = 
+            level === 'low' ? '快速' : level === 'medium' ? '标准' : '高精度';
     }
     
     onWindowResize() {
