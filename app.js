@@ -23,7 +23,7 @@ class WaterSimulatorApp {
             diameter: 80,
             height: 120,
             wallThickness: 3,
-            liquidLevel: 100,
+            liquidLevel: 80,
             initialTemp: 85,
             ambientTemp: 25,
             targetMinTemp: 55,
@@ -42,6 +42,7 @@ class WaterSimulatorApp {
         this.useWebGL = true;
         this.currentMaterial = this.wallMaterials.ceramic;
         this.isPlaying = false;
+        this.playbackSpeed = 100; // 默认倍速
         
         // === Demo 指标追踪 ===
         this.metrics = {
@@ -183,8 +184,11 @@ class WaterSimulatorApp {
         
         document.getElementById('add-probe-btn').addEventListener('click', (e) => { this.addRipple(e); this.addProbeToChart(); });
         document.getElementById('play-btn').addEventListener('click', () => this.togglePlay());
+        document.querySelectorAll('.speed-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.setSpeed(parseInt(btn.dataset.speed)));
+        });
         document.getElementById('set-probe-btn').addEventListener('click', (e) => { this.addRipple(e); this.setProbeFromInput(); });
-        document.getElementById('probe-close-btn').addEventListener('click', () => this.closeProbeInfo());
+        document.getElementById('probe-close-btn')?.addEventListener('click', () => this.closeProbeInfo());
         
         // 故事模式
         document.getElementById('story-btn').addEventListener('click', (e) => { this.addRipple(e); this.openStoryMode(); });
@@ -192,15 +196,26 @@ class WaterSimulatorApp {
         document.getElementById('story-prev').addEventListener('click', () => this.storyPrev());
         document.getElementById('story-close').addEventListener('click', (e) => { this.addRipple(e); this.closeStoryMode(); });
         
-        // 折叠面板切换
-        document.getElementById('advice-toggle').addEventListener('click', () => {
-            const section = document.getElementById('advice-section');
-            section.classList.toggle('collapsed');
-        });
+        // 面板折叠
+        document.getElementById('panel-collapse-btn')?.addEventListener('click', () => this.togglePanelCollapse());
+        
+        // 可为 collapse toggle 按钮追加初始 click
+        this.initPanelResize();
+    }
+    
+    showProbeSection() {
+        const section = document.getElementById('probe-panel-section');
+        if (section) section.style.display = 'block';
+    }
+    
+    hideProbeSection() {
+        const section = document.getElementById('probe-panel-section');
+        if (section) section.style.display = 'none';
     }
     
     closeProbeInfo() {
-        document.getElementById('probe-info').classList.remove('active');
+        const section = document.getElementById('probe-panel-section');
+        if (section) section.style.display = 'none';
     }
     
     setProbeFromInput() {
@@ -224,8 +239,8 @@ class WaterSimulatorApp {
         
         const temp = this.physicsEngine.getTemperatureAtPosition(x, probeGlobalY, z, this.currentTimeIndex);
         document.getElementById('probe-temp').textContent = temp.toFixed(1);
-        document.getElementById('probe-info').classList.add('active');
-        
+        this.showProbeSection();
+            
         this.currentProbePosition = { x, y, z, probeGlobalY };
         
         if (this.useWebGL && this.mesh && this.scene) {
@@ -233,7 +248,7 @@ class WaterSimulatorApp {
                 this.scene.remove(this.probePoint);
             }
             const probeGeometry = new THREE.SphereGeometry(2.5, 16, 16);
-            const probeMaterial = new THREE.MeshBasicMaterial({ color: 0xFF5A5F });
+            const probeMaterial = new THREE.MeshBasicMaterial({ color: 0xE67E22 });
             this.probePoint = new THREE.Mesh(probeGeometry, probeMaterial);
             this.probePoint.position.set(x, y, z);
             this.scene.add(this.probePoint);
@@ -256,6 +271,13 @@ class WaterSimulatorApp {
         }
     }
     
+    setSpeed(speed) {
+        this.playbackSpeed = speed;
+        document.querySelectorAll('.speed-btn').forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.speed) === speed);
+        });
+    }
+    
     playAnimation() {
         if (!this.isPlaying) return;
         
@@ -265,7 +287,10 @@ class WaterSimulatorApp {
             this.updateVisualization();
             this.updateTimeDisplay();
             
-            setTimeout(() => this.playAnimation(), 100);
+            // 每步的模拟秒数 / 倍速 = 实际间隔(秒)，转毫秒
+            const stepSeconds = (this.physicsEngine?.maxTime || 600) / (this.timeSteps.length || 100);
+            const intervalMs = (stepSeconds / this.playbackSpeed) * 1000;
+            setTimeout(() => this.playAnimation(), Math.max(16, Math.round(intervalMs)));
         } else {
             this.isPlaying = false;
             document.getElementById('play-btn').textContent = '▶';
@@ -306,8 +331,8 @@ class WaterSimulatorApp {
                 datasets: [{
                     label: '温度',
                     data: [],
-                    borderColor: '#FF5A5F',
-                    backgroundColor: 'rgba(255, 90, 95, 0.1)',
+                    borderColor: '#E67E22',
+                    backgroundColor: 'rgba(230, 126, 34, 0.12)',
                     borderWidth: 2,
                     tension: 0.4,
                     fill: true,
@@ -321,10 +346,10 @@ class WaterSimulatorApp {
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: 'rgba(248, 249, 250, 0.95)',
-                        titleColor: '#2D3436',
-                        bodyColor: '#636E72',
-                        borderColor: '#DEE2E6',
+                        backgroundColor: 'rgba(15, 22, 40, 0.95)',
+                        titleColor: '#F4F8FC',
+                        bodyColor: '#999999',
+                        borderColor: 'rgba(255,255,255,0.08)',
                         borderWidth: 1,
                         padding: 8,
                         displayColors: false
@@ -339,7 +364,7 @@ class WaterSimulatorApp {
                         grid: { display: false },
                         ticks: { 
                             display: true, 
-                            color: '#95A5A6',
+                            color: '#777777',
                             font: { size: 10 },
                             maxTicksLimit: 3
                         },
@@ -371,17 +396,17 @@ class WaterSimulatorApp {
                         display: true,
                         position: 'top',
                         labels: {
-                            color: '#636E72',
+                            color: '#999999',
                             font: { size: 11 },
                             usePointStyle: true,
                             padding: 12
                         }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(248, 249, 250, 0.95)',
-                        titleColor: '#2D3436',
-                        bodyColor: '#636E72',
-                        borderColor: '#DEE2E6',
+                        backgroundColor: 'rgba(15, 22, 40, 0.95)',
+                        titleColor: '#F4F8FC',
+                        bodyColor: '#999999',
+                        borderColor: 'rgba(255,255,255,0.08)',
                         borderWidth: 1,
                         padding: 12,
                         displayColors: true
@@ -390,33 +415,33 @@ class WaterSimulatorApp {
                 scales: {
                     x: {
                         grid: {
-                            color: 'rgba(222, 226, 230, 0.5)',
+                            color: 'rgba(255,255,255,0.04)',
                             drawBorder: false
                         },
                         ticks: {
-                            color: '#95A5A6',
+                            color: '#777777',
                             font: { size: 11 }
                         },
                         title: {
                             display: true,
                             text: '时间 (秒)',
-                            color: '#95A5A6',
+                            color: '#777777',
                             font: { size: 12, weight: 500 }
                         }
                     },
                     y: {
                         grid: {
-                            color: 'rgba(222, 226, 230, 0.5)',
+                            color: 'rgba(255,255,255,0.04)',
                             drawBorder: false
                         },
                         ticks: {
-                            color: '#95A5A6',
+                            color: '#777777',
                             font: { size: 11 }
                         },
                         title: {
                             display: true,
                             text: '温度 (°C)',
-                            color: '#95A5A6',
+                            color: '#777777',
                             font: { size: 12, weight: 500 }
                         },
                         min: 0,
@@ -451,6 +476,7 @@ class WaterSimulatorApp {
                 console.log(`模拟耗时: ${elapsed.toFixed(1)}ms`);
                 
                 this.initVisualization();
+                this._meshesNeedRefresh = false;  // rebuildSceneObjects 内部置 true，此处重置
                 
                 if (this.timeSteps.length > 0) {
                     document.getElementById('time-slider').max = this.timeSteps.length - 1;
@@ -467,10 +493,9 @@ class WaterSimulatorApp {
                 document.getElementById('probe-z').textContent = '0';
                 const centerTemp = this.physicsEngine.getTemperatureAtPosition(0, 0, 0, this.currentTimeIndex);
                 document.getElementById('probe-temp').textContent = centerTemp.toFixed(1);
-                document.getElementById('probe-info').classList.add('active');
+                this.showProbeSection();
                 this.drawCrossSections(0, 0, 0);
                 
-                this.generateAdvice();
                 this.updateStatus('计算完成', false);
 
                 // 异步发起CFD精度校验
@@ -484,6 +509,13 @@ class WaterSimulatorApp {
     
     initVisualization() {
         const container = document.getElementById('canvas-container');
+        
+        if (this.scene) {
+            // Scene/camera/controls already exist — only rebuild 3D objects
+            this.rebuildSceneObjects();
+            return;
+        }
+        
         container.innerHTML = '';
         
         this.scene = null;
@@ -500,6 +532,21 @@ class WaterSimulatorApp {
         }
     }
     
+    rebuildSceneObjects() {
+        if (!this.scene) return;
+        if (this.cupMesh) { this.scene.remove(this.cupMesh); this.cupMesh = null; }
+        if (this.mesh)   { this.scene.remove(this.mesh);   this.mesh   = null; }
+        if (this._steamGroup) { this.scene.remove(this._steamGroup); this._steamMeshes?.forEach(m => { m.geometry?.dispose(); m.material?.dispose(); }); this._steamGroup = null; this._steamMeshes = null; }
+        if (this._steamInterval) { clearInterval(this._steamInterval); this._steamInterval = null; }
+        
+        // 标记物理引擎数据已过时，防止 update3DVisualization 用旧数据染新 mesh
+        this._meshesNeedRefresh = true;
+        
+        this.createCup();
+        this.createLiquid();
+        this.createSteam();
+    }
+    
     detectWebGL() {
         try {
             const canvas = document.createElement('canvas');
@@ -514,12 +561,12 @@ class WaterSimulatorApp {
         const container = document.getElementById('canvas-container');
         
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xE8E0D8);
+        this.scene.background = new THREE.Color(0x0A0E17);
         
         const width = container.clientWidth;
         const height = container.clientHeight;
         this.camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
-        this.camera.position.set(0, 15, 88);
+        this.camera.position.set(0, 175, 303);
         
         try {
             this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -544,31 +591,31 @@ class WaterSimulatorApp {
                 this.controls = null;
             }
             
-            // Enhanced lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            // Enhanced lighting for dark scene
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
             this.scene.add(ambientLight);
             
-            const hemiLight = new THREE.HemisphereLight(0xddeeff, 0x0f0e0d, 0.6);
+            const hemiLight = new THREE.HemisphereLight(0x1a2a4a, 0x0a0e17, 0.5);
             this.scene.add(hemiLight);
             
-            const mainLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            const mainLight = new THREE.DirectionalLight(0xffeedd, 1.2);
             mainLight.position.set(40, 100, 50);
             mainLight.castShadow = true;
             mainLight.shadow.mapSize.width = 1024;
             mainLight.shadow.mapSize.height = 1024;
             this.scene.add(mainLight);
             
-            const fillLight = new THREE.DirectionalLight(0x4488ff, 0.3);
+            const fillLight = new THREE.DirectionalLight(0x5599ff, 0.35);
             fillLight.position.set(-40, 30, -60);
             this.scene.add(fillLight);
             
-            const rimLight = new THREE.DirectionalLight(0xFF5A5F, 0.25);
+            const rimLight = new THREE.DirectionalLight(0xE67E22, 0.3);
             rimLight.position.set(0, -40, -80);
             this.scene.add(rimLight);
             
             this.createCup();
             this.createLiquid();
-            this.createParticles();
+            this.createSteam();
             
             this.setupRaycaster();
             
@@ -644,9 +691,9 @@ class WaterSimulatorApp {
         
         ctx.beginPath();
         ctx.roundRect(centerX - liquidRadius, centerY - liquidHeight/2, liquidRadius * 2, liquidHeight, 8);
-        ctx.fillStyle = 'rgba(222, 226, 230, 0.3)';
+        ctx.fillStyle = 'rgba(255,255,255,0.03)';
         ctx.fill();
-        ctx.strokeStyle = '#DEE2E6';
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.lineWidth = 2;
         ctx.stroke();
         
@@ -677,11 +724,11 @@ class WaterSimulatorApp {
         
         ctx.beginPath();
         ctx.roundRect(centerX - liquidRadius, centerY - liquidHeight/2, liquidRadius * 2, liquidHeight, 8);
-        ctx.strokeStyle = '#FF5A5F';
+        ctx.strokeStyle = 'rgba(230,126,34,0.5)';
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        ctx.fillStyle = '#636E72';
+        ctx.fillStyle = '#777777';
         ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('点击任意位置查看温度', centerX, centerY + liquidHeight/2 + 24);
@@ -692,11 +739,11 @@ class WaterSimulatorApp {
             
             ctx.beginPath();
             ctx.arc(probeScreenX, probeScreenY, 12, 0, Math.PI * 2);
-            ctx.fillStyle = '#FF5A5F';
+            ctx.fillStyle = '#E67E22';
             ctx.fill();
             ctx.beginPath();
             ctx.arc(probeScreenX, probeScreenY, 8, 0, Math.PI * 2);
-            ctx.fillStyle = '#FFFFFF';
+            ctx.fillStyle = '#0A0E17';
             ctx.fill();
             
             const probeTemp = this.physicsEngine.getTemperatureAtPosition(
@@ -706,7 +753,7 @@ class WaterSimulatorApp {
                 this.currentTimeIndex
             );
             
-            ctx.fillStyle = '#FF5A5F';
+            ctx.fillStyle = '#E67E22';
             ctx.font = 'bold 14px sans-serif';
             ctx.fillText(probeTemp.toFixed(1) + '°C', probeScreenX, probeScreenY + 4);
         }
@@ -722,26 +769,25 @@ class WaterSimulatorApp {
         const legendY = (height - legendHeight) / 2;
         
         // 背景
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.fillStyle = 'rgba(10, 14, 23, 0.85)';
         ctx.beginPath();
         ctx.roundRect(legendX - 4, legendY - 20, legendWidth + 18, legendHeight + 52, 6);
         ctx.fill();
-        ctx.strokeStyle = '#DEE2E6';
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.lineWidth = 1;
         ctx.stroke();
         
         // 标题
-        ctx.fillStyle = '#636E72';
+        ctx.fillStyle = '#777777';
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('温度 °C', legendX + legendWidth / 2 + 5, legendY - 6);
         
-        // 渐变条
-        const gradient = ctx.createLinearGradient(0, legendY + legendHeight, 0, legendY);
+        // 渐变条 — 固定 0~100°C
         const steps = 20;
         for (let i = 0; i <= steps; i++) {
             const t = i / steps;
-            const temp = this.params.ambientTemp + t * (this.params.initialTemp - this.params.ambientTemp);
+            const temp = 0 + t * 100;
             const color = this.tempToColor(temp);
             const y = legendY + legendHeight * (1 - t);
             ctx.fillStyle = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
@@ -749,21 +795,23 @@ class WaterSimulatorApp {
         }
         
         // 边框
-        ctx.strokeStyle = '#DEE2E6';
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.lineWidth = 1;
         ctx.strokeRect(legendX + 5, legendY, legendWidth, legendHeight);
         
-        // 温度标签
-        ctx.fillStyle = '#636E72';
+        // 温度标签 — 固定 0~100°C
+        ctx.fillStyle = '#777777';
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'left';
         const labelPositions = [0, 0.25, 0.5, 0.75, 1];
-        for (const pos of labelPositions) {
-            const temp = this.params.ambientTemp + pos * (this.params.initialTemp - this.params.ambientTemp);
+        const labelTemps = [0, 25, 50, 75, 100];
+        for (let idx = 0; idx < labelPositions.length; idx++) {
+            const pos = labelPositions[idx];
+            const temp = labelTemps[idx];
             const y = legendY + legendHeight * (1 - pos);
-            ctx.fillText(Math.round(temp) + '°C', legendX + legendWidth + 10, y + 3);
+            ctx.fillText(temp + '°C', legendX + legendWidth + 10, y + 3);
             // 刻度线
-            ctx.strokeStyle = '#95A5A6';
+            ctx.strokeStyle = '#555555';
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(legendX + 5 + legendWidth, y);
@@ -837,7 +885,7 @@ class WaterSimulatorApp {
         ctx.clearRect(0, 0, drawWidth, drawHeight);
         
         // 背景
-        ctx.fillStyle = '#F8F9FA';
+        ctx.fillStyle = '#0A0E17';
         ctx.fillRect(0, 0, drawWidth, drawHeight);
         
         // 绘制热力图像素
@@ -854,11 +902,11 @@ class WaterSimulatorApp {
         }
         
         // 边框
-        ctx.strokeStyle = '#DEE2E6';
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
         ctx.lineWidth = 1;
         ctx.strokeRect(0, 0, drawWidth, drawHeight);
     }
-    
+
     handleHeatmapClick(e) {
         if (!this.physicsEngine) return;
         
@@ -888,7 +936,7 @@ class WaterSimulatorApp {
             
             const temp = this.physicsEngine.getTemperatureAtPosition(r, h, 0, this.currentTimeIndex);
             document.getElementById('probe-temp').textContent = temp.toFixed(1);
-            document.getElementById('probe-info').classList.add('active');
+            this.showProbeSection();
             
             this.updateProbeChart(h);
             
@@ -912,9 +960,9 @@ class WaterSimulatorApp {
         }
         
         const material = new THREE.MeshPhongMaterial({
-            color: 0xDEE2E6,
+            color: 0x2C2C2C,
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.4,
             side: THREE.DoubleSide,
             depthWrite: false,
             depthTest: true
@@ -960,13 +1008,13 @@ class WaterSimulatorApp {
         const material = new THREE.MeshPhysicalMaterial({
             vertexColors: true,
             transparent: true,
-            opacity: 0.92,
-            roughness: 0.15,
-            metalness: 0.0,
-            clearcoat: 0.3,
-            clearcoatRoughness: 0.25,
+            opacity: 0.88,
+            roughness: 0.25,
+            metalness: 0.05,
+            clearcoat: 0.15,
+            clearcoatRoughness: 0.4,
             side: THREE.DoubleSide,
-            envMapIntensity: 0.6,
+            envMapIntensity: 0.4,
         });
         
         this.mesh = new THREE.Mesh(geometry, material);
@@ -976,31 +1024,37 @@ class WaterSimulatorApp {
     }
     
     tempToColor(temp) {
-        const minTemp = this.params.ambientTemp;
-        const maxTemp = this.params.initialTemp;
+        // 固定 0°C ~ 100°C 映射到完整热力渐变
+        const minTemp = 0;
+        const maxTemp = 100;
         const tempRange = maxTemp - minTemp;
         
-        if (tempRange <= 0) {
-            return { r: 0.6, g: 0.6, b: 0.6 };
-        }
+        if (tempRange <= 0) return { r: 0.6, g: 0.6, b: 0.6 };
         
-        const normalized = Math.max(0, Math.min(1, (temp - minTemp) / tempRange));
+        const t = Math.max(0, Math.min(1, (temp - minTemp) / tempRange));
         
-        // 红-橙-黄-青-蓝色阶: 高温(红) → 低温(蓝)
-        // reversed: red=hot(high temp), blue=cold(low temp)
-        if (normalized > 0.75) {
-            const t = (normalized - 0.75) / 0.25;
-            return { r: 0.8 + t * 0.2, g: 0.2 + t * 0.6, b: 0.1 + t * 0.2 };
-        } else if (normalized > 0.5) {
-            const t = (normalized - 0.5) / 0.25;
-            return { r: 0.6 + t * 0.2, g: 0.8 + t * 0.2, b: 0.3 + t * 0.3 };
-        } else if (normalized > 0.25) {
-            const t = (normalized - 0.25) / 0.25;
-            return { r: 0.4 - t * 0.2, g: 1.0 - t * 0.2, b: 0.6 + t * 0.1 };
-        } else {
-            const t = normalized / 0.25;
-            return { r: 0.2 - t * 0.2, g: 0.8 - t * 0.4, b: 0.7 + t * 0.3 };
+        // 传统热力图 6 色阶平滑渐变（冷→热）
+        // 蓝 → 浅蓝 → 青绿 → 黄绿 → 橙 → 红
+        const stops = [
+            { pos: 0.00, r: 0.04, g: 0.04, b: 0.80 },  // 深蓝 (冷)
+            { pos: 0.20, r: 0.00, g: 0.45, b: 0.95 },  // 浅蓝
+            { pos: 0.40, r: 0.00, g: 0.85, b: 0.60 },  // 青绿
+            { pos: 0.60, r: 0.40, g: 0.90, b: 0.00 },  // 黄绿
+            { pos: 0.80, r: 0.90, g: 0.45, b: 0.00 },  // 橙
+            { pos: 1.00, r: 0.85, g: 0.00, b: 0.00 },  // 红 (热)
+        ];
+        
+        for (let i = 0; i < stops.length - 1; i++) {
+            if (t >= stops[i].pos && t <= stops[i + 1].pos) {
+                const local = (t - stops[i].pos) / (stops[i + 1].pos - stops[i].pos);
+                return {
+                    r: stops[i].r + local * (stops[i + 1].r - stops[i].r),
+                    g: stops[i].g + local * (stops[i + 1].g - stops[i].g),
+                    b: stops[i].b + local * (stops[i + 1].b - stops[i].b),
+                };
+            }
         }
+        return { r: 0.85, g: 0.0, b: 0.0 };
     }
     
     updateVisualization() {
@@ -1019,6 +1073,9 @@ class WaterSimulatorApp {
     }
     
     update3DVisualization() {
+        // 参数已变化但未重新模拟时，保持初始温度颜色，不做错误映射
+        if (this._meshesNeedRefresh) return;
+        
         if (!this.mesh || !this.physicsEngine || !this.timeSteps[this.currentTimeIndex]) {
             console.log('updateVisualization skipped:', !this.mesh, !this.physicsEngine, !this.timeSteps[this.currentTimeIndex]);
             return;
@@ -1090,7 +1147,7 @@ class WaterSimulatorApp {
                 }
                 
                 const probeGeometry = new THREE.SphereGeometry(2.5, 16, 16);
-                const probeMaterial = new THREE.MeshBasicMaterial({ color: 0xFF5A5F });
+                const probeMaterial = new THREE.MeshBasicMaterial({ color: 0xE67E22 });
                 this.probePoint = new THREE.Mesh(probeGeometry, probeMaterial);
                 this.probePoint.position.copy(point);
                 this.scene.add(this.probePoint);
@@ -1114,7 +1171,7 @@ class WaterSimulatorApp {
                 );
                 
                 document.getElementById('probe-temp').textContent = temp.toFixed(1);
-                document.getElementById('probe-info').classList.add('active');
+                this.showProbeSection();
                 
                 this.currentProbePosition.probeGlobalY = probeGlobalY;
                 
@@ -1122,7 +1179,7 @@ class WaterSimulatorApp {
                 
                 this.drawCrossSections(point.x, probeGlobalY, point.z);
             } else {
-                document.getElementById('probe-info').classList.remove('active');
+                this.hideProbeSection();
             }
         };
         
@@ -1163,7 +1220,7 @@ class WaterSimulatorApp {
             return;
         }
         
-        const colors = ['#FF5A5F', '#00A699', '#FFD700', '#FF69B4', '#00D4FF', '#FC642D'];
+        const colors = ['#E67E22', '#27AE60', '#F5B041', '#8E44AD', '#16A085', '#E74C3C'];
         const color = colors[this.probes.length % colors.length];
         
         const label = `位置 (${probeX.toFixed(1)}, ${probeY.toFixed(1)}, ${probeZ.toFixed(1)})`;
@@ -1186,49 +1243,6 @@ class WaterSimulatorApp {
         
         this.tempChart.update();
         this.probes.push({ position: { x: probeX, y: probeY, z: probeZ }, color });
-    }
-    
-    generateAdvice() {
-        if (!this.physicsEngine) return;
-        
-        const strategy = this.physicsEngine.generateDrinkingStrategy(this.currentMaterial);
-        const adviceCard = document.getElementById('advice-card');
-        
-        // 展开面板
-        document.getElementById('advice-section').classList.remove('collapsed');
-        
-        const materialName = this.currentMaterial.name;
-        
-        let html = `<h4>🧠 AI 饮水策略分析</h4>`;
-        
-        if (strategy.optimalStartTime !== null) {
-            const minutes = Math.floor(strategy.optimalStartTime / 60);
-            const seconds = Math.floor(strategy.optimalStartTime % 60);
-            html += `<p><strong>最佳饮用时间：</strong>等待约 ${minutes}分${seconds}秒 后开始饮用</p>`;
-        }
-        
-        html += `<div style="margin-top: 16px;">`;
-        
-        for (const phase of strategy.phases) {
-            html += `
-                <div class="phase-card">
-                    <div class="phase-header">
-                        <span class="phase-time">${phase.timeRange}</span>
-                        <span class="phase-name">${phase.description}</span>
-                    </div>
-                    <div class="phase-temps">
-                        <span>中心: ${phase.temps.avgCenter.toFixed(1)}°C</span>
-                        <span>边缘: ${phase.temps.avgEdge.toFixed(1)}°C</span>
-                        <span>表层: ${phase.temps.avgSurface.toFixed(1)}°C</span>
-                    </div>
-                    ${phase.bestPosition ? `<div class="phase-best">📍 ${phase.bestPosition}</div>` : ''}
-                </div>
-            `;
-        }
-        
-        html += `</div>`;
-        
-        adviceCard.innerHTML = html;
     }
     
     animate() {
@@ -1262,7 +1276,8 @@ class WaterSimulatorApp {
             document.getElementById('time-display').textContent = '00:00';
             return;
         }
-        const totalSeconds = this.currentTimeIndex * 2;
+        const stepSeconds = (this.physicsEngine?.maxTime || 600) / (this.timeSteps.length || 100);
+        const totalSeconds = this.currentTimeIndex * stepSeconds;
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = Math.floor(totalSeconds % 60);
         document.getElementById('time-display').textContent = 
@@ -1281,10 +1296,10 @@ class WaterSimulatorApp {
         if (badge) {
             badge.style.display = 'inline-flex';
             badge.innerHTML = `
-                <span style="color:#95A5A6;">#${this.metrics.simCount}</span>
-                <span style="color:#636E72;">${this.metrics.lastSimTime.toFixed(0)}ms</span>
-                <span style="color:#00A699;">avg ${this.metrics.avgSimTime.toFixed(0)}ms</span>
-                ${this.metrics.accuracy !== null ? `<span style="color:#FF5A5F;">±${this.metrics.accuracy.toFixed(2)}°C</span>` : ''}
+                <span style="color:#777777;">#${this.metrics.simCount}</span>
+                <span style="color:#999999;">${this.metrics.lastSimTime.toFixed(0)}ms</span>
+                <span style="color:#27AE60;">avg ${this.metrics.avgSimTime.toFixed(0)}ms</span>
+                ${this.metrics.accuracy !== null ? `<span style="color:#E67E22;">±${this.metrics.accuracy.toFixed(2)}°C</span>` : ''}
             `;
         }
     }
@@ -1337,17 +1352,21 @@ class WaterSimulatorApp {
     }
     
     onWindowResize() {
-        if (this.useWebGL && this.renderer) {
-            const container = document.getElementById('canvas-container');
-            const width = container.clientWidth;
-            const height = container.clientHeight;
-            
-            this.camera.aspect = width / height;
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(width, height);
-        } else {
-            this.resizeHeatmap();
-        }
+        // 防抖：避免 CSS transition 期间多次触发导致 3D 模型横向漂移
+        if (this._resizeTimer) clearTimeout(this._resizeTimer);
+        this._resizeTimer = setTimeout(() => {
+            if (this.useWebGL && this.renderer) {
+                const container = document.getElementById('canvas-container');
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                
+                this.camera.aspect = width / height;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(width, height);
+            } else {
+                this.resizeHeatmap();
+            }
+        }, 200);
     }
     
     resetSimulation() {
@@ -1367,15 +1386,7 @@ class WaterSimulatorApp {
         document.getElementById('time-slider').value = 0;
         document.getElementById('time-display').textContent = '00:00';
         
-        document.getElementById('advice-card').innerHTML = `
-            <h4>🧠 AI 饮水策略分析</h4>
-            <p>点击「开始模拟计算」按钮，系统将基于物理信息神经网络进行热传导模拟，为您生成最优饮水方案。</p>
-            <div class="strategy">
-                <strong>💡 提示：</strong>点击3D模型任意位置放置探针，可查看该点的温度变化曲线。
-            </div>
-        `;
-        
-        document.getElementById('probe-info').classList.remove('active');
+        this.hideProbeSection();
         
         const container = document.getElementById('canvas-container');
         container.innerHTML = '';
@@ -1391,6 +1402,62 @@ class WaterSimulatorApp {
         this.heatmapCtx = null;
         
         this.updateStatus('准备就绪', false);
+    }
+    
+    // ======== 右栏拖拽调节 & 折叠 ========
+    
+    initPanelResize() {
+        const handle = document.getElementById('panel-resize-handle');
+        const panel = document.getElementById('right-panel');
+        if (!handle || !panel) return;
+        
+        let resizeTick = false;
+        const triggerResize = () => {
+            resizeTick = false;
+            window.dispatchEvent(new Event('resize'));
+        };
+        
+        const onDrag = (e) => {
+            const newWidth = window.innerWidth - e.clientX;
+            const clamped = Math.max(260, Math.min(560, newWidth));
+            panel.style.width = clamped + 'px';
+            panel.classList.remove('collapsed');
+            // 用 rAF 节流，避免拖拽时高频触发 resize
+            if (!resizeTick) {
+                resizeTick = true;
+                requestAnimationFrame(triggerResize);
+            }
+        };
+        
+        const onUp = () => {
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('mouseup', onUp);
+            handle.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            // 松手后确保最终 resize
+            window.dispatchEvent(new Event('resize'));
+        };
+        
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            handle.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', onUp);
+        });
+    }
+    
+    togglePanelCollapse() {
+        const panel = document.getElementById('right-panel');
+        const btn = document.getElementById('panel-collapse-btn');
+        if (!panel) return;
+        panel.classList.toggle('collapsed');
+        if (btn) btn.textContent = panel.classList.contains('collapsed') ? '◀' : '▶';
+        // 等 transition 结束后再触发 resize，防止中间帧抖动
+        const onEnd = () => { panel.removeEventListener('transitionend', onEnd); window.dispatchEvent(new Event('resize')); };
+        panel.addEventListener('transitionend', onEnd);
     }
     
     // ======== Phase 0: 新增方法 ========
@@ -1418,76 +1485,130 @@ class WaterSimulatorApp {
     }
     
     // 蒸发粒子系统
-    createParticles() {
-        if (this.particleSystem) {
-            this.scene.remove(this.particleSystem);
+    createSteam() {
+        if (this._steamGroup) {
+            this.scene.remove(this._steamGroup);
+            this._steamMeshes?.forEach(m => { m.geometry?.dispose(); m.material?.map?.dispose(); m.material?.dispose(); });
+            this._steamGroup = null;
+            this._steamMeshes = null;
         }
-        const count = 120;
-        const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(count * 3);
-        const velocities = [];
         
+        // 生成雾状渐变纹理 (canvas radial gradient)
+        const texSize = 256;
+        const canvas = document.createElement('canvas');
+        canvas.width = texSize; canvas.height = texSize;
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createRadialGradient(texSize/2, texSize/2, 0, texSize/2, texSize/2, texSize/2);
+        gradient.addColorStop(0, 'rgba(230,235,245,0.7)');
+        gradient.addColorStop(0.10, 'rgba(225,232,242,0.55)');
+        gradient.addColorStop(0.25, 'rgba(215,224,238,0.30)');
+        gradient.addColorStop(0.50, 'rgba(200,212,230,0.10)');
+        gradient.addColorStop(0.75, 'rgba(190,205,225,0.02)');
+        gradient.addColorStop(1, 'rgba(190,205,225,0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, texSize, texSize);
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        
+        // 液面坐标（与 createLiquid 一致）
+        const innerBottom = -this.params.height / 2 + this.params.wallThickness + 1;
+        const maxLiquidH = this.params.height - this.params.wallThickness * 2 - 2;
+        const liquidH = maxLiquidH * (this.params.liquidLevel / 100);
+        const surfaceY = innerBottom + liquidH;  // 液面顶部 Y
+        const r = this.params.diameter / 2 - this.params.wallThickness - 1; // 液体半径
+        
+        this._steamGroup = new THREE.Group();
+        this._steamMeshes = [];
+        
+        // 创建多层雾盘
+        const count = 36;
         for (let i = 0; i < count; i++) {
-            const radius = (Math.random() * 0.6 + 0.1) * (this.params.diameter / 2 - this.params.wallThickness - 1);
-            const angle = Math.random() * Math.PI * 2;
-            positions[i * 3] = Math.cos(angle) * radius;
-            positions[i * 3 + 1] = (this.params.height - this.params.wallThickness * 2 - 2) * 0.9 + 2 + Math.random() * 3;
-            positions[i * 3 + 2] = Math.sin(angle) * radius;
-            velocities.push({
-                x: (Math.random() - 0.5) * 0.3,
-                y: Math.random() * 0.5 + 0.2,
-                z: (Math.random() - 0.5) * 0.3,
+            const discR = r * (0.25 + Math.random() * 0.6);
+            const geo = new THREE.PlaneGeometry(discR * 2, discR * 2);
+            const mat = new THREE.MeshBasicMaterial({
+                map: texture,
+                transparent: true,
+                opacity: 0.18 + Math.random() * 0.25,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                side: THREE.DoubleSide,
             });
-        }
-        
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        this.particleVelocities = velocities;
-        
-        const material = new THREE.PointsMaterial({
-            color: 0xffffff,
-            size: 1.2,
-            transparent: true,
-            opacity: 0.5,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-        });
-        
-        this.particleSystem = new THREE.Points(geometry, material);
-        this.particleSystem.renderOrder = 3;
-        this.scene?.add(this.particleSystem);
-        
-        // Animate particles in render loop
-        this._animateParticles = () => {
-            if (!this.particleSystem || !this.physicsEngine) return;
-            const pos = this.particleSystem.geometry.attributes.position;
-            const liquidHeight = (this.params.height - this.params.wallThickness * 2 - 2);
-            const surfaceY = liquidHeight * 0.9 + liquidHeight / 2;
-            const temp = this.physicsEngine?.grid?.[Math.floor((this.physicsEngine?.nr || 20) / 2)]?.[Math.floor((this.physicsEngine?.nh || 24) * 0.9)] || 0;
-            const intensity = Math.max(0.1, (temp - this.params.ambientTemp) / (this.params.initialTemp - this.params.ambientTemp));
-            this.particleSystem.material.opacity = 0.15 * intensity + 0.1;
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.rotation.x = -Math.PI / 2; // 水平放置
             
-            for (let i = 0; i < pos.count; i++) {
-                pos.array[i * 3] += this.particleVelocities[i].x * intensity * 0.5;
-                pos.array[i * 3 + 1] += this.particleVelocities[i].y * intensity * 0.5;
-                pos.array[i * 3 + 2] += this.particleVelocities[i].z * intensity * 0.5;
+            // 起点：部分从液面以下生成（体现内部外溢）
+            const fromInside = i < 12;
+            const startY = fromInside
+                ? surfaceY - liquidH * 0.25 - Math.random() * liquidH * 0.35 // 液面以下 25%~60%
+                : surfaceY - 1 + Math.random() * 3;                           // 液面以上 0~2
+            
+            mesh.position.set(
+                (Math.random() - 0.5) * r * 0.6,
+                startY,
+                (Math.random() - 0.5) * r * 0.6
+            );
+            mesh.userData = {
+                baseY: startY,
+                baseR: discR,
+                riseSpeed: 0.5 + Math.random() * 1.2,
+                spreadSpeed: 0.3 + Math.random() * 0.7,
+                phase: Math.random() * Math.PI * 2,
+                fromInside: fromInside,
+            };
+            this._steamGroup.add(mesh);
+            this._steamMeshes.push(mesh);
+        }
+        this.scene?.add(this._steamGroup);
+        
+        // 动画循环
+        this._animateSteam = () => {
+            if (!this._steamGroup || !this.physicsEngine) return;
+            if (!this._steamMeshes.length) return;
+            
+            // 当前表层温度 → 强度因子 (温度越低蒸汽越少)
+            const ni = Math.floor((this.physicsEngine.nr || 20) / 2);
+            const nj = Math.floor((this.physicsEngine.nh || 24) * 0.9);
+            const temp = this.physicsEngine.timeSteps?.[this.currentTimeIndex]?.[ni]?.[nj] || this.params.initialTemp;
+            const intensity = Math.max(0.03, (temp - this.params.ambientTemp) / (this.params.initialTemp - this.params.ambientTemp));
+            
+            const cupTop = this.params.height / 2;
+            const overflowTop = cupTop + 0.2 * this.params.height; // 杯壁上方 20% 杯高
+            const maxH = (overflowTop - surfaceY) * intensity; // 蒸汽高度随温度衰减，低温时溢出趋零
+            
+            for (const mesh of this._steamMeshes) {
+                const ud = mesh.userData;
+                // 上升
+                mesh.position.y += ud.riseSpeed * intensity * 0.5;
+                // 径向扩散 (热力外溢)
+                const spread = ud.spreadSpeed * intensity;
+                mesh.position.x += Math.cos(ud.phase + mesh.position.y * 0.15) * spread * 0.15;
+                mesh.position.z += Math.sin(ud.phase + mesh.position.y * 0.15) * spread * 0.15;
+                // 越远越大越淡
+                const distFromSurface = Math.max(0, mesh.position.y - surfaceY);
+                const expand = 1 + distFromSurface * (ud.fromInside ? 0.12 : 0.08);
+                mesh.scale.setScalar(expand);
                 
-                // Reset when too high or too far
-                if (pos.array[i * 3 + 1] > surfaceY + 25 || Math.abs(pos.array[i * 3]) > this.params.diameter) {
-                    const radius = (Math.random() * 0.6 + 0.1) * (this.params.diameter / 2 - this.params.wallThickness - 1);
-                    const angle = Math.random() * Math.PI * 2;
-                    pos.array[i * 3] = Math.cos(angle) * radius;
-                    pos.array[i * 3 + 1] = surfaceY - liquidHeight / 2 + Math.random() * 2;
-                    pos.array[i * 3 + 2] = Math.sin(angle) * radius;
+                // 不透明度：随高度 + 温度递减
+                const heightFade = 1 - Math.min(1, distFromSurface / maxH);
+                mesh.material.opacity = (0.08 + intensity * 0.32) * heightFade;
+                
+                // 重置
+                if (mesh.position.y > surfaceY + maxH || Math.abs(mesh.position.x) > r * 1.8 || Math.abs(mesh.position.z) > r * 1.8) {
+                    mesh.position.y = surfaceY - (ud.fromInside ? liquidH * 0.25 + Math.random() * liquidH * 0.35 : 1 - Math.random() * 2);
+                    mesh.position.x = (Math.random() - 0.5) * r * 0.6;
+                    mesh.position.z = (Math.random() - 0.5) * r * 0.6;
+                    mesh.scale.setScalar(1);
+                    mesh.material.opacity = 0.18 + Math.random() * (0.25 * intensity);
+                    ud.baseY = mesh.position.y;
                 }
             }
-            pos.needsUpdate = true;
         };
         
-        // Hook into animate loop
-        if (this._particleInterval) clearInterval(this._particleInterval);
-        this._particleInterval = setInterval(() => {
-            if (this._animateParticles) this._animateParticles();
-        }, 50);
+        if (this._steamInterval) clearInterval(this._steamInterval);
+        this._steamInterval = setInterval(() => {
+            if (this._animateSteam) this._animateSteam();
+        }, 40);
     }
     
     // 故事模式
@@ -1497,7 +1618,7 @@ class WaterSimulatorApp {
             { title: '从一杯茶开始', desc: 'SyncNeuro 物理AI正在模拟陶瓷杯中85°C热茶的自然冷却过程。温度场从杯壁和液面逐渐散热，内部热量向四周传导。', highlight: '' },
             { title: '改变杯壁材料', desc: '切换为不锈钢材质观察区别。不锈钢导热系数(17.0 W/m·°C)远高于陶瓷(1.5 W/m·°C)，杯壁散热速度显著加快，温度分布更加不均匀。', highlight: 'material-select' },
             { title: '深度温度检测', desc: '点击3D模型上的任意位置放置探针，系统会实时显示该点的温度和变化曲线。杯中心和杯壁的温度差异可达10°C以上。', highlight: 'canvas-container' },
-            { title: 'AI 智能分析', desc: '基于完整的温度场模拟数据，SyncNeuro引擎自动分析出最佳饮用时段和各阶段的推荐饮用位置。', highlight: 'advice-section' },
+            { title: 'AI 智能分析', desc: '基于完整的温度场模拟数据，SyncNeuro引擎自动分析出最佳饮用时段和各阶段的推荐饮用位置。', highlight: '' },
             { title: 'SyncNeuro 物理AI', desc: '与传统数值方法(需要1-3秒重算)不同，PINN模型经过训练后可在毫秒级完成推理。这正是物理AI驱动工业智能的核心优势。', highlight: '' },
         ];
         this.updateStoryContent();
